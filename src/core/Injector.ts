@@ -33,15 +33,16 @@ export class Injector {
 	// Unified injection context containing all component-related data
 	private readonly taskContext: TaskContext = new TaskContext();
 	private readonly domWatcher: DOMWatcher = new DOMWatcher();
-	private readonly injcetConfig: InjectionConfig = {};
+	private readonly injectConfig: InjectionConfig = {};
 
 	constructor(
 		config: InjectionConfig = {
 			alive: false,
-			scope: 'local'
+			scope: 'local',
+			timeout: 5000
 		}
 	) {
-		this.injcetConfig = config;
+		this.injectConfig = config;
 	}
 
 	public run(): void {
@@ -65,7 +66,8 @@ export class Injector {
 				injectAt,
 				(el): void => this.handleInjectionReady(el, id),
 				document,
-				{ once: true }
+				{ once: true, timeout: this.injectConfig.timeout }
+
 			);
 		});
 	}
@@ -302,7 +304,7 @@ export class Injector {
 				);
 			},
 			document,
-			{ once: true }
+			{ once: true, timeout: this.injectConfig.timeout }
 		);
 
 		return proxyController;
@@ -370,7 +372,7 @@ export class Injector {
 				injectAt
 			);
 
-			if (this.injcetConfig.alive) {
+			if (this.injectConfig.alive) {
 				// Injection re-injection mechanism
 				// if write 'global', the watcher will observer the document body element
 				// if write 'local', the watcher will observe the matchedElement, which is the component's host element
@@ -382,7 +384,7 @@ export class Injector {
 							this.taskContext.resetState(taskId);
 						},
 						(el): void => this.handleInjectionReady(el, taskId),
-						this.injcetConfig.scope === 'global' ? currentDocument : matchedElement
+						this.injectConfig.scope === 'global' ? currentDocument : matchedElement
 					);
 					console.log(`[Injector] DomAlive watcher set for taskId ${taskId}`);
 				});

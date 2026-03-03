@@ -31,6 +31,7 @@ export type InjectionErrorMessage = {
 export type InjectionConfig = {
 	alive?: boolean;
 	scope?: 'local' | 'global';
+	timeout?: number
 };
 export type InjectCallback = (el: HTMLElement, observer?: MutationObserver) => void;
 export type InjectionContext = {

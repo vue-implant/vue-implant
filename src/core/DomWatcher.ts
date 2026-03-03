@@ -49,6 +49,7 @@ export class DOMWatcher {
 		if (options?.timeout) {
 			setTimeout(() => {
 				disconnect();
+				console.warn(`[DOMWatcher Warning] "${selector}" not found within ${options.timeout}ms.`)
 			}, options.timeout);
 		}
 	}
