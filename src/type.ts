@@ -28,6 +28,10 @@ export type InjectionErrorMessage = {
 	injectAt: string;
 	id: string;
 };
+export type InjectionConfig = {
+	alive?: boolean;
+	scope?: 'local' | 'global';
+};
 export type InjectCallback = (el: HTMLElement, observer?: MutationObserver) => void;
 export type InjectionContext = {
 	// Unique task identifier

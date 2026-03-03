@@ -5,12 +5,19 @@ import {
 	type ComponentPublicInstance,
 	createApp,
 	markRaw,
+	nextTick,
 	type Ref,
 	type WatchHandle,
 	type WatchSource,
 	watch
 } from 'vue';
-import { Action, type ActionEvent, type eventOptions, type InjectionContext } from '../type';
+import {
+	Action,
+	type ActionEvent,
+	type eventOptions,
+	type InjectionConfig,
+	type InjectionContext
+} from '../type';
 import { UUID } from '../util/uuid';
 import { DOMWatcher } from './DomWatcher';
 import { TaskContext } from './TaskContext';
@@ -18,7 +25,7 @@ import { TaskContext } from './TaskContext';
 /**
  *  TODO:
  *  1.重试机制(Considering)
- *  2.复活机制,当组件被意外卸载时,能够自动重新注入(ing...)
+ *  2.复活机制,当组件被意外卸载时,能够自动重新注入(finished)
  *  3.完备的生命周期钩子(wait...)
  * 	4.看情况解耦注入点与监视点的释义(Considering)
  */
@@ -26,6 +33,16 @@ export class Injector {
 	// Unified injection context containing all component-related data
 	private readonly taskContext: TaskContext = new TaskContext();
 	private readonly domWatcher: DOMWatcher = new DOMWatcher();
+	private readonly injcetConfig: InjectionConfig = {};
+
+	constructor(
+		config: InjectionConfig = {
+			alive: false,
+			scope: 'local'
+		}
+	) {
+		this.injcetConfig = config;
+	}
 
 	public run(): void {
 		if (this.taskContext.getRunningFlag()) {
@@ -291,7 +308,6 @@ export class Injector {
 		return proxyController;
 	}
 
-
 	// TODD:considering to the "Race Condition" that may occur when the component is injecting and then the app host be removed
 	// Inject component into the matched DOM element
 	private injectComponent(matchedElement: HTMLElement, taskId: string): boolean {
@@ -326,14 +342,15 @@ export class Injector {
 		appRoot.style.display = 'contents';
 		appRoot.style.zIndex = '999999';
 
-		if (matchedElement.isConnected)
-
-			matchedElement.appendChild(appRoot); // matchedElement is the target host element 
-
-		//TODO:Injection re-injection mechanism
-
-
-
+		// Isolated node condition
+		if (matchedElement.isConnected) {
+			matchedElement.appendChild(appRoot); // matchedElement is the target host element
+		} else {
+			console.warn(
+				`[Injector Warning] Target element is not connected to the DOM, this task will be stopped injection`
+			);
+			return false;
+		}
 
 		try {
 			// Create a Vue app instance and mount it to the newly created DOM node
@@ -352,6 +369,25 @@ export class Injector {
 				'injectAt:',
 				injectAt
 			);
+
+			if (this.injcetConfig.alive) {
+				// Injection re-injection mechanism
+				// if write 'global', the watcher will observer the document body element
+				// if write 'local', the watcher will observe the matchedElement, which is the component's host element
+				nextTick().then(() => {
+					this.domWatcher.onDomAlive(
+						matchedElement,
+						injectAt,
+						() => {
+							this.taskContext.resetState(taskId);
+						},
+						(el): void => this.handleInjectionReady(el, taskId),
+						this.injcetConfig.scope === 'global' ? currentDocument : matchedElement
+					);
+					console.log(`[Injector] DomAlive watcher set for taskId ${taskId}`);
+				});
+			}
+
 			return true;
 		} catch (error) {
 			console.error(`[Injector Error] Component mount failed:`, error);

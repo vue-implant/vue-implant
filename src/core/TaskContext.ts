@@ -4,6 +4,7 @@ import type { InjectionContext, InjectionErrorMessage, InjectionRecord } from '.
 export class TaskContext {
 	public injectionErrorMessages: Array<InjectionErrorMessage> = []; // TODO: retry mechanism
 	public injectPoints: InjectionRecord[] = [];
+
 	private readonly contextMap: Map<string, InjectionContext> = new Map();
 
 	private pinia: Pinia | null = null;
@@ -192,12 +193,11 @@ export class TaskContext {
 		}
 	}
 
-
 	public resetState(id: string): void {
 		const context = this.contextMap.get(id);
 		if (!context) return;
 
-		// unmount the subapp instance, to prevent memory leaks 
+		// unmount the subapp instance, to prevent memory leaks
 		if (context.app) {
 			context.app.unmount();
 		}
@@ -207,7 +207,6 @@ export class TaskContext {
 		context.app = undefined;
 		context.instance = undefined;
 		context.appRoot = undefined;
-
 
 		//reset task listener
 		if (context.controller) {

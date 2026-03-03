@@ -60,17 +60,39 @@ export class DOMWatcher {
 	public onDomAlive(
 		target: HTMLElement, //observer the target element's parent element
 		selector: string, // the selector to find the target element when it is re-added
-		onRemove: () => void, // this callback is clear the injected component instance and subapp 
+		onRemove: () => void, // this callback is clear the injected component instance and subapp
 		onRestore: InjectCallback, // callback when the target element is re-added
-	): void {
-		const warpperCallback = () => {
+		root: Document | HTMLElement = document
+	): () => void {
+		let stopped = false;
 
-		}
-		const observer: MutationObserver | null = this.setupRemovalObserver(target, onRemove);
-		// if the observer is null, it mean that the target's parent element not found 
-		if (!observer) {
-			this.onDomReady(selector, onRestore, target.ownerDocument, { once: true });
-		}
+		const cycle = (currentTarget: HTMLElement) => {
+			if (stopped) return;
+
+			this.setupRemovalObserver(
+				currentTarget,
+				() => {
+					if (stopped) return;
+					onRemove();
+
+					this.onDomReady(
+						selector,
+						(newTarget) => {
+							if (stopped) return;
+							onRestore(newTarget);
+							cycle(newTarget);
+						},
+						document,
+						{ once: true }
+					);
+				},
+				root
+			);
+		};
+		cycle(target);
+		return () => {
+			stopped = true;
+		};
 	}
 
 	/**
@@ -80,7 +102,7 @@ export class DOMWatcher {
 		currentRoot: Document | HTMLElement,
 		selector: string,
 		callback: (el: HTMLElement, observer?: MutationObserver) => void
-	) {
+	): void {
 		const searchRoot =
 			currentRoot instanceof Document ? currentRoot : currentRoot.ownerDocument;
 		const existing = searchRoot.querySelector(selector);
@@ -94,11 +116,11 @@ export class DOMWatcher {
 	 * Set up a MutationObserver to watch for DOM changes
 	 */
 	private setupMutationObserver(
-		currentRoot: Document | HTMLElement,
+		root: Document | HTMLElement,
 		selector: string,
 		observers: MutationObserver[],
 		callback: InjectCallback
-	) {
+	): void {
 		const observer: MutationObserver = new MutationObserver((mutations, obs) => {
 			for (const mutation of mutations) {
 				mutation.addedNodes.forEach((node) => {
@@ -109,7 +131,7 @@ export class DOMWatcher {
 			}
 		});
 
-		const observeTarget: Element | null = this.getObserveTarget(currentRoot);
+		const observeTarget: Element | null = this.getObserveTarget(root);
 		if (observeTarget) {
 			observer.observe(observeTarget, {
 				childList: true,
@@ -119,28 +141,57 @@ export class DOMWatcher {
 		}
 	}
 
-	private setupRemovalObserver(target: HTMLElement, onRemove: () => void): MutationObserver | null {
-
-		const parentNode: ParentNode | null = target.parentNode;
-
-		if (!parentNode) {
-			onRemove();
+	private setupRemovalObserver(
+		target: HTMLElement,
+		callback: (obs?: MutationObserver) => void,
+		root: Document | HTMLElement
+	): MutationObserver | null {
+		const baseTarget: HTMLElement | HTMLBodyElement | null = this.getObserveTarget(root);
+		const isDocument: boolean = baseTarget instanceof HTMLBodyElement;
+		if (baseTarget === null) {
+			console.error(
+				`[DOMWatcher Error] Failed to set up removal observer: unable to find a valid observation target in the provided root.`
+			);
 			return null;
 		}
 
+		if (!isDocument && !baseTarget.isConnected) {
+			console.error(
+				'[DOMWatcher Error] Failed to set up removal observer: the observation target is not connected to the DOM.'
+			);
+			return null;
+		}
+
+		const observerNode: HTMLElement | null = !isDocument
+			? baseTarget.parentElement || baseTarget
+			: baseTarget;
+
+
+		if (!observerNode) {
+			callback();
+			return null;
+		}
 
 		const observer = new MutationObserver((mutations, obs) => {
 			for (const mutation of mutations) {
 				mutation.removedNodes.forEach((node) => {
 					if (node === target) {
-						onRemove();
+						callback(obs);
 						obs.disconnect();
 					}
 				});
 			}
 		});
 
-		observer.observe(parentNode, { childList: true });
+		observer.observe(observerNode, {
+			childList: true,
+			subtree: !!isDocument
+		});
+
+		console.log(
+			`[DOMWatcher] Starting to observe target element for removal, at `,
+			observerNode
+		);
 		return observer;
 	}
 
@@ -152,7 +203,7 @@ export class DOMWatcher {
 		selector: string,
 		observer: MutationObserver,
 		callback: InjectCallback
-	) {
+	): void {
 		const target = node.matches(selector) ? node : node.querySelector(selector);
 		if (target) {
 			callback(target as HTMLElement, observer);
@@ -162,7 +213,7 @@ export class DOMWatcher {
 	/**
 	 * Get the observation target element
 	 */
-	private getObserveTarget(currentRoot: Document | HTMLElement): HTMLElement | null {
+	private getObserveTarget(currentRoot: Document | HTMLElement): HTMLElement | HTMLBodyElement | null {
 		return (currentRoot instanceof Document ? currentRoot.body : currentRoot) || document.body;
 	}
 }

@@ -10,7 +10,7 @@ const props = withDefaults(defineProps<{
 }>(), {
 });
 
-const isShowDelay = defineModel<boolean>('isShowDelay', { default: false });
+const isShowDelay = defineModel<boolean>('isShowDelay', { default: true });
 const isShowTargetBox = defineModel<boolean>('isShowTargetBox', { default: true });
 const activitySignal = defineModel<boolean>('activitySignal', { default: undefined });
 
@@ -39,7 +39,7 @@ const activitySignal = defineModel<boolean>('activitySignal', { default: undefin
         </div>
         <slot name="conditionalBtn"></slot>
         <template v-if="isShowTargetBox">
-            <div class="target-box" v-if="!isShowDelay" :id="`target-${index}`">
+            <div class="target-box" v-if="isShowDelay" :id="`target-${index}`">
                 <span class="target-label">{{ targetLabel }}</span>
             </div>
             <div v-else class="target-placeholder">[ The target has not yet appeared ]</div>
@@ -115,7 +115,7 @@ const activitySignal = defineModel<boolean>('activitySignal', { default: undefin
 .target-placeholder {
     font-size: 13px;
     color: #475569;
-    margin-top: 8px;
+    margin: 8px 0;
     padding: 8px;
     border: 1px dashed #334155;
     border-radius: 6px;

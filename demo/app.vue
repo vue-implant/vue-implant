@@ -16,6 +16,7 @@ import SignalTarget from './targets/SignalTarget.vue'
 import ListenerTarget from './targets/listenerTarget.vue'
 import LogPanel from './panel/LogPanel.vue'
 import AppHeader from './panel/AppHeader.vue'
+import ReInjectTarget from './targets/ReInjectTarget.vue'
 
 
 const pinia = createPinia()
@@ -35,7 +36,10 @@ function runInjector() {
         return
     }
 
-    injector = new Injector();
+    injector = new Injector({
+        alive: true,
+        scope: "local"
+    });
     injector.setPinia(pinia);
 
     injector.register('#target-1', InjectedBadge);
@@ -67,6 +71,9 @@ function runInjector() {
             addLog('info', msg)
         }
     )
+
+    injector.register('#target-6', InjectedBadge);
+
     addLog('info', `[Demo] Pure listener registered, id: ${listenerId}`)
 
     injector.run()
@@ -97,8 +104,8 @@ onUnmounted(() => {
 
         <div class="main">
             <div class="targets">
-                <Target title="target 1" index=1 componentAt="#target-1" listenerAt="#target-1-btn"
-                    desc="common component injection" targetLabel="Badge component injection point" />
+                <Target title="target 1" index=1 componentAt="#target-1" desc="common component injection"
+                    targetLabel="Badge component injection point" />
 
                 <DelayTarget title="target 2" index=2 componentAt="#target-2" desc="DOM delayed appearance"
                     targetLabel="Badge component injection point (delayed appearance)" :delayTime="1500" />
@@ -111,7 +118,8 @@ onUnmounted(() => {
 
                 <ListenerTarget title="target 5" index=5 listenerAt="#target-5-btn"
                     desc="Pure event listening, no need to inject components" targetLabel="listener injection point" />
-
+                <ReInjectTarget title="target 6" index="6" componentAt="#target-6" desc="re-inject mechanism"
+                    targetLabel="re-injection point" :disappearTime="1500" :appearTime="1500" />
             </div>
             <LogPanel />
         </div>
