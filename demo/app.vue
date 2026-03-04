@@ -46,6 +46,7 @@ const componentInfo = reactive<TargetResults>({
     target6: null,
 })
 provide('componentInfo', componentInfo)
+provide('isRunning', isRunning)
 
 
 function runInjector() {
@@ -152,7 +153,7 @@ onUnmounted(() => {
                 <ListenerTarget title="target 5" index=5 listenerAt="#target-5-btn"
                     desc="Pure event listening, no need to inject components" targetLabel="listener injection point" />
                 <ReInjectTarget title="target 6" index="6" componentAt="#target-6" desc="re-inject mechanism"
-                    targetLabel="re-injection point" :disappearTime="1500" :appearTime="1500" />
+                    targetLabel="re-injection point" :disappearTime="1500" :appearTime="1500" :isAlive="true" />
             </div>
             <LogPanel />
         </div>

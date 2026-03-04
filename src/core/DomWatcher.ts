@@ -31,7 +31,7 @@ export class DOMWatcher {
 			// In once mode, disconnect immediately after finding the element
 			if (options?.once) {
 				disconnect();
-				console.log('[DOMWatcher] Element found, observer disconnected (once mode).');
+				console.log(`[vue-injector] Element "${selector}" found, observer disconnected`);
 			}
 		};
 
@@ -50,7 +50,7 @@ export class DOMWatcher {
 			setTimeout(() => {
 				disconnect();
 				console.warn(
-					`[DOMWatcher Warning] "${selector}" not found within ${options.timeout}ms.`
+					`[vue-injector] Element "${selector}" not found within ${options.timeout}ms, observer disconnected`
 				);
 			}, options.timeout);
 		}
@@ -71,8 +71,8 @@ export class DOMWatcher {
 		this.setupRemovalObserver(
 			target,
 			() => {
-				if (!isObserver) return;
 				onRemove();
+				if (!isObserver) return;
 				this.onDomReady(
 					selector,
 					(newTarget) => {
@@ -87,7 +87,7 @@ export class DOMWatcher {
 		);
 		return () => {
 			isObserver = false;
-			console.log(`[DOMWatcher] onDomAlive observer for "${selector}" has been manually disconnected.`);
+			console.log(`[vue-injector] Alive observer for "${selector}" stopped`);
 		};
 	}
 
@@ -146,14 +146,14 @@ export class DOMWatcher {
 		const isDocument: boolean = baseTarget instanceof HTMLBodyElement;
 		if (baseTarget === null) {
 			console.error(
-				`[DOMWatcher Error] Failed to set up removal observer: unable to find a valid observation target in the provided root.`
+				`[vue-injector] Failed to set up removal observer: no valid observation target found`
 			);
 			return null;
 		}
 
 		if (!isDocument && !baseTarget.isConnected) {
 			console.error(
-				'[DOMWatcher Error] Failed to set up removal observer: the observation target is not connected to the DOM.'
+				'[vue-injector] Failed to set up removal observer: observation target is detached from DOM'
 			);
 			return null;
 		}
@@ -184,7 +184,7 @@ export class DOMWatcher {
 		});
 
 		console.log(
-			`[DOMWatcher] Starting to observe target element for removal, at `,
+			`[vue-injector] Removal observer started`,
 			observerNode
 		);
 		return observer;

@@ -10,7 +10,7 @@ const props = defineProps<{
     targetLabel: string
     disappearTime: number
     appearTime: number
-    isStop?: boolean
+    isAlive: boolean
 }>();
 let timer: ReturnType<typeof setTimeout> | null = null;
 const isShowDelay = ref(true);
@@ -25,21 +25,17 @@ type TargetResults = {
 
 type Phase = 'idle-visible' | 'pending-hide' | 'idle-hidden' | 'pending-show';
 const phase = ref<Phase>('idle-visible');
+const aliveActive = ref(props.isAlive); // tracks whether alive observer is active
 
 const disappearDisabled = computed(() => phase.value !== 'idle-visible');
 const appearDisabled = computed(() => phase.value !== 'idle-hidden');
 const targetResults = (inject<TargetResults>('componentInfo') as TargetResults);
-console.log('targetResults', targetResults)
-
-
-
 
 const disappearTarget = () => {
     if (disappearDisabled.value) return;
     phase.value = 'pending-hide';
     timer = setTimeout(() => {
         isShowDelay.value = false;
-        targetResults.injectorInstance.stopAlive(targetResults.target6.id);
         phase.value = 'idle-hidden';
     }, props.disappearTime);
 }
@@ -51,6 +47,16 @@ const appearTarget = () => {
         isShowDelay.value = true;
         phase.value = 'idle-visible';
     }, props.appearTime);
+}
+
+const handleKeepAlive = () => {
+    targetResults.target6.keepAlive();
+    aliveActive.value = true;
+}
+
+const handleStopAlive = () => {
+    targetResults.target6.stopAlive();
+    aliveActive.value = false;
 }
 
 
@@ -65,6 +71,14 @@ const appearTarget = () => {
                 <button class="btn btn-secondary" @click="appearTarget" :disabled="appearDisabled">
                     Appears in {{ appearTime / 1000 }}s
                 </button>
+                <template v-if="props.isAlive">
+                    <button class="btn btn-alive" @click="handleKeepAlive" :disabled="aliveActive">
+                        keepAlive
+                    </button>
+                    <button class="btn btn-alive-stop" @click="handleStopAlive" :disabled="!aliveActive">
+                        stopAlive
+                    </button>
+                </template>
             </div>
         </template>
     </Target>
@@ -98,5 +112,17 @@ const appearTarget = () => {
     background: #1e3a5f;
     color: #7dd3fc;
     border: 1px solid #2563eb44;
+}
+
+.btn-alive {
+    background: #14532d;
+    color: #86efac;
+    border: 1px solid #22c55e44;
+}
+
+.btn-alive-stop {
+    background: #7f1d1d;
+    color: #fca5a5;
+    border: 1px solid #ef444444;
 }
 </style>

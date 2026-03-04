@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { inject, ref, type Ref } from 'vue';
+
+const isRunning = inject<Ref<boolean>>('isRunning', ref(false));
 
 const props = withDefaults(defineProps<{
     title: string
@@ -37,14 +40,18 @@ const activitySignal = defineModel<boolean>('activitySignal', { default: undefin
             </p>
             <p class="card-desc">Desc: <code>{{ desc }}</code></p>
         </div>
-        <slot name="conditionalBtn"></slot>
+        <div :class="['slot-actions', { disabled: !isRunning }]">
+            <slot name="conditionalBtn"></slot>
+        </div>
         <template v-if="isShowTargetBox">
             <div class="target-box" v-if="isShowDelay" :id="`target-${index}`">
                 <span class="target-label">{{ targetLabel }}</span>
             </div>
             <div v-else class="target-placeholder">[ The target has not yet appeared ]</div>
         </template>
-        <slot name="secondaryBtn"></slot>
+        <div :class="['slot-actions', { disabled: !isRunning }]">
+            <slot name="secondaryBtn"></slot>
+        </div>
     </section>
 </template>
 <style scoped>
@@ -131,6 +138,12 @@ const activitySignal = defineModel<boolean>('activitySignal', { default: undefin
 .tag-off {
     color: #f87171;
     font-weight: 600;
+}
+
+.slot-actions.disabled {
+    pointer-events: none;
+    opacity: .4;
+    user-select: none;
 }
 
 .click-log {

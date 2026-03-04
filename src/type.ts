@@ -63,11 +63,13 @@ export type InjectionContext = {
 	watcher?: WatchHandle;
 	watchSource?: WatchSource<boolean>;
 
+	isObserver?: boolean;
 	alive?: boolean;
 	scope?: 'local' | 'global';
 	stopAlive?: () => void;
 };
 export type RegisterResult = {
 	id: string;
-	stopAlive?: () => void;
+	keepAlive: () => void;
+	stopAlive: () => void;
 };

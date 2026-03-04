@@ -49,7 +49,7 @@ export class TaskContext {
 	public setPinia(piniaInstance: Pinia): void {
 		if (this.pinia) {
 			console.warn(
-				'[Injector Warning] Pinia instance already exists, it will be overwritten'
+				'[vue-injector] Pinia instance already set, overwriting'
 			);
 		}
 		this.pinia = piniaInstance;
@@ -61,7 +61,7 @@ export class TaskContext {
 		const context: InjectionContext | undefined = this.contextMap.get(id);
 		if (!context) {
 			console.warn(
-				`[Injector Warning] Task ${id} not found, it may have been destroyed or was never registered`
+				`[vue-injector] Task "${id}" not found, may already be destroyed`
 			);
 			return;
 		}
@@ -114,7 +114,7 @@ export class TaskContext {
 		this.isRunning = false;
 		this.pinia = null;
 
-		console.log('[Injector] All injection instances have been destroyed');
+		console.log('[vue-injector] All tasks destroyed');
 	}
 
 	public releaseComponentInstance(id: string): void {
@@ -125,11 +125,11 @@ export class TaskContext {
 				context.app = undefined;
 				context.instance = undefined;
 			} catch (error) {
-				console.error(`[TaskContext Error] Failed to unmount component ${id}:`, error);
+				console.error(`[vue-injector] Failed to unmount component for task "${id}":`, error);
 			}
 		} else {
 			console.warn(
-				`[TaskContext Warning] Component instance ${id} not found, it may have been unmounted already`
+				`[vue-injector] Component for task "${id}" already unmounted`
 			);
 		}
 	}
@@ -138,13 +138,13 @@ export class TaskContext {
 		const context: InjectionContext | undefined = this.contextMap.get(id);
 		if (!context) {
 			console.warn(
-				`[TaskContext Warning] Context not found for ${id}, unable to remove mount root element`
+				`[vue-injector] Task "${id}" context not found, unable to remove root element`
 			);
 			return;
 		}
 		if (!context.appRoot) {
 			console.warn(
-				`[TaskContext Warning] Mount root element not found for ${id}, please check if the component mount point exists`
+				`[vue-injector] Root element for task "${id}" not found, may already be removed`
 			);
 			return;
 		}
@@ -153,7 +153,7 @@ export class TaskContext {
 			context.appRoot = undefined;
 		} catch (error) {
 			console.error(
-				`[TaskContext Error] Failed to remove component root element ${id}:`,
+				`[vue-injector] Failed to remove root element for task "${id}":`,
 				error
 			);
 		}
@@ -167,7 +167,7 @@ export class TaskContext {
 			try {
 				context.controller.abort();
 			} catch (error) {
-				console.error(`[TaskContext Error] Failed to abort event task ${id}:`, error);
+				console.error(`[vue-injector] Failed to abort listener for task "${id}":`, error);
 			}
 		}
 
@@ -188,7 +188,7 @@ export class TaskContext {
 				context.watcher = undefined;
 				context.watchSource = undefined;
 			} catch (error) {
-				console.error(`[TaskContext Error] Failed to stop watcher ${id}:`, error);
+				console.error(`[vue-injector] Failed to stop watcher for task "${id}":`, error);
 			}
 		}
 	}
