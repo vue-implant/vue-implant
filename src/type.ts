@@ -8,11 +8,15 @@ export type ActionEvent = {
 	type: Action;
 };
 
-export type eventOptions = {
-	listenAt: string;
-	event: string;
-	callback: EventListener;
-	activitySignal?: () => Ref<boolean>;
+export type ComponentOptions = {
+	alive?: boolean;
+	scope?: 'local' | 'global';
+	on?: {
+		listenAt: string;
+		type: string;
+		callback: EventListener;
+		activitySignal?: () => Ref<boolean>;
+	};
 };
 
 export type ObserverOptions =
@@ -31,7 +35,7 @@ export type InjectionErrorMessage = {
 export type InjectionConfig = {
 	alive?: boolean;
 	scope?: 'local' | 'global';
-	timeout?: number
+	timeout?: number;
 };
 export type InjectCallback = (el: HTMLElement, observer?: MutationObserver) => void;
 export type InjectionContext = {
@@ -58,4 +62,12 @@ export type InjectionContext = {
 	// Watch info
 	watcher?: WatchHandle;
 	watchSource?: WatchSource<boolean>;
+
+	alive?: boolean;
+	scope?: 'local' | 'global';
+	stopAlive?: () => void;
+};
+export type RegisterResult = {
+	id: string;
+	stopAlive?: () => void;
 };

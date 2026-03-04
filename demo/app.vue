@@ -3,7 +3,7 @@ export default { name: 'App' }
 </script>
 <script setup lang="ts">
 import { createPinia } from 'pinia'
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, provide, reactive, ref } from 'vue'
 import { Injector } from '../src'
 import { addLog, patchConsole } from './logger'
 import InjectedBadge from './testComponent/InjectedBadge.vue'
@@ -27,7 +27,25 @@ let injector: Injector | null = null
 
 const activitySignal = ref(true)       // activity signal toggle
 const isRunning = ref(false)
+type TargetResults = {
+    injectorInstance: Injector | null
+    target1: ReturnType<Injector['register']> | null
+    target2: ReturnType<Injector['register']> | null
+    target3: ReturnType<Injector['register']> | null
+    target4: ReturnType<Injector['register']> | null
+    target6: ReturnType<Injector['register']> | null
+}
 
+// 必须在 setup 顶层调用 provide，这里提供一个响应式对象，后续直接修改其属性
+const componentInfo = reactive<TargetResults>({
+    injectorInstance: null,
+    target1: null,
+    target2: null,
+    target3: null,
+    target4: null,
+    target6: null,
+})
+provide('componentInfo', componentInfo)
 
 
 function runInjector() {
@@ -37,31 +55,35 @@ function runInjector() {
     }
 
     injector = new Injector({
-        alive: true,
+        alive: false,
         scope: "local"
     });
     injector.setPinia(pinia);
 
-    injector.register('#target-1', InjectedBadge);
+    const target1 = injector.register('#target-1', InjectedBadge);
+    console.log('target1', target1)
+    const target2 = injector.register('#target-2', InjectedBadge);
 
-    injector.register('#target-2', InjectedBadge);
-
-    injector.register('#target-3', InjectedCounter, {
-        listenAt: '#target-3-btn',
-        event: 'click',
-        callback: () => {
-            addLog('info', '[Demo] Target 3 button clicked (event listener triggered)')
+    const target3 = injector.register('#target-3', InjectedCounter, {
+        on: {
+            listenAt: '#target-3-btn',
+            type: 'click',
+            callback: () => {
+                addLog('info', '[Demo] Target 3 button clicked (event listener triggered)')
+            }
         },
-    })
+    });
 
-    injector.register('#target-4', InjectedTooltip, {
-        listenAt: '#target-4-btn',
-        event: 'click',
-        callback: () => {
-            addLog('info', '[Demo] Target 4 button clicked (under activitySignal control)')
-        },
-        activitySignal: () => activitySignal,
-    })
+    const target4 = injector.register('#target-4', InjectedTooltip, {
+        on: {
+            listenAt: '#target-4-btn',
+            type: 'click',
+            callback: () => {
+                addLog('info', '[Demo] Target 4 button clicked (under activitySignal control)')
+            },
+            activitySignal: () => activitySignal,
+        }
+    });
 
     const listenerId = injector.registerListener(
         '#target-5-btn',
@@ -72,9 +94,20 @@ function runInjector() {
         }
     )
 
-    injector.register('#target-6', InjectedBadge);
+    const target6 = injector.register('#target-6', InjectedBadge, {
+        alive: true,
+        scope: 'local',
+    });
 
     addLog('info', `[Demo] Pure listener registered, id: ${listenerId}`)
+
+    // 更新顶层 provide 的响应式对象
+    componentInfo.injectorInstance = injector
+    componentInfo.target1 = target1
+    componentInfo.target2 = target2
+    componentInfo.target3 = target3
+    componentInfo.target4 = target4
+    componentInfo.target6 = target6
 
     injector.run()
     isRunning.value = true

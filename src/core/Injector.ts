@@ -14,9 +14,10 @@ import {
 import {
 	Action,
 	type ActionEvent,
-	type eventOptions,
+	type ComponentOptions,
 	type InjectionConfig,
-	type InjectionContext
+	type InjectionContext,
+	type RegisterResult
 } from '../type';
 import { UUID } from '../util/uuid';
 import { DOMWatcher } from './DomWatcher';
@@ -67,7 +68,6 @@ export class Injector {
 				(el): void => this.handleInjectionReady(el, id),
 				document,
 				{ once: true, timeout: this.injectConfig.timeout }
-
 			);
 		});
 	}
@@ -105,14 +105,18 @@ export class Injector {
 		return id;
 	}
 
-	public register(injectAt: string, component: Component, option?: eventOptions): string {
+	public register(
+		injectAt: string,
+		component: Component,
+		option?: ComponentOptions
+	): RegisterResult {
 		const taskId: string = this.getTaskId(component, injectAt);
 		if (this.taskContext.has(taskId)) {
 			// Component already registered, return directly
 			console.warn(
 				`[Injector Warning] Component ${taskId} is already registered, do not register again`
 			);
-			return taskId;
+			return { id: taskId };
 		}
 		// Use unified InjectionContext to store all information
 		const context: InjectionContext = {
@@ -120,21 +124,23 @@ export class Injector {
 			componentName: this.getComponentName(component),
 			componentInjectAt: injectAt,
 			component: this.markRawComponent(component),
-			withEvent: false
+			withEvent: false,
+			alive: option?.alive ?? this.injectConfig.alive,
+			scope: option?.scope ?? this.injectConfig.scope
 		};
 
-		if (option) {
+		if (option?.on) {
 			// If event options are provided, add event-related info
-			context.listenerName = `listener-${option.listenAt}-${option.event}`;
+			context.listenerName = `listener-${option.on.listenAt}-${option.on.type}`;
 			context.withEvent = true;
-			context.listenAt = option.listenAt;
-			context.event = option.event;
-			context.callback = option.callback;
-		}
+			context.listenAt = option.on.listenAt;
+			context.event = option.on.type;
+			context.callback = option.on.callback;
 
-		// Extract activity signal
-		if (option?.activitySignal) {
-			context.activitySignal = option.activitySignal;
+			// Extract activity signal
+			if (option.on.activitySignal) {
+				context.activitySignal = option.on.activitySignal;
+			}
 		}
 
 		this.taskContext.set(taskId, context);
@@ -143,7 +149,31 @@ export class Injector {
 			injectAt: injectAt
 		});
 		console.log(`[Injector] Task: ${taskId} registered successfully`);
-		return taskId;
+		return {
+			id: taskId,
+			stopAlive: () => this.stopAlive(taskId)
+		};
+	}
+
+	public stopAlive(id: string): void {
+		const context = this.taskContext.get(id);
+
+		if (!context) {
+			console.error(`[Injector Error] Task ${id} not found.`);
+			return;
+		}
+
+		// status check: if not set alive mode or no stopAlive handler, warn and exit
+		if (!context.alive || !context.stopAlive) {
+			console.warn(
+				`[Injector Warning] Task ${id}: No active "alive" handler to stop. (Status: alive=${!!context.alive})`
+			);
+			return;
+		}
+
+		context.stopAlive();
+		context.alive = false;
+		context.stopAlive = undefined;
 	}
 
 	public setPinia(pinia: Pinia): void {
@@ -372,20 +402,21 @@ export class Injector {
 				injectAt
 			);
 
-			if (this.injectConfig.alive) {
+			if (context.alive) {
 				// Injection re-injection mechanism
 				// if write 'global', the watcher will observer the document body element
 				// if write 'local', the watcher will observe the matchedElement, which is the component's host element
 				nextTick().then(() => {
-					this.domWatcher.onDomAlive(
+					const stopHandler = this.domWatcher.onDomAlive(
 						matchedElement,
 						injectAt,
 						() => {
 							this.taskContext.resetState(taskId);
 						},
 						(el): void => this.handleInjectionReady(el, taskId),
-						this.injectConfig.scope === 'global' ? currentDocument : matchedElement
+						context.scope === 'global' ? currentDocument : matchedElement
 					);
+					context.stopAlive = stopHandler;
 					console.log(`[Injector] DomAlive watcher set for taskId ${taskId}`);
 				});
 			}

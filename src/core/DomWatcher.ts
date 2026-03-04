@@ -49,7 +49,9 @@ export class DOMWatcher {
 		if (options?.timeout) {
 			setTimeout(() => {
 				disconnect();
-				console.warn(`[DOMWatcher Warning] "${selector}" not found within ${options.timeout}ms.`)
+				console.warn(
+					`[DOMWatcher Warning] "${selector}" not found within ${options.timeout}ms.`
+				);
 			}, options.timeout);
 		}
 	}
@@ -65,34 +67,27 @@ export class DOMWatcher {
 		onRestore: InjectCallback, // callback when the target element is re-added
 		root: Document | HTMLElement = document
 	): () => void {
-		let stopped = false;
-
-		const cycle = (currentTarget: HTMLElement) => {
-			if (stopped) return;
-
-			this.setupRemovalObserver(
-				currentTarget,
-				() => {
-					if (stopped) return;
-					onRemove();
-
-					this.onDomReady(
-						selector,
-						(newTarget) => {
-							if (stopped) return;
-							onRestore(newTarget);
-							cycle(newTarget);
-						},
-						document,
-						{ once: true }
-					);
-				},
-				root
-			);
-		};
-		cycle(target);
+		let isObserver: boolean = true;
+		this.setupRemovalObserver(
+			target,
+			() => {
+				if (!isObserver) return;
+				onRemove();
+				this.onDomReady(
+					selector,
+					(newTarget) => {
+						if (!isObserver) return;
+						onRestore(newTarget);
+					},
+					document,
+					{ once: true }
+				);
+			},
+			root
+		);
 		return () => {
-			stopped = true;
+			isObserver = false;
+			console.log(`[DOMWatcher] onDomAlive observer for "${selector}" has been manually disconnected.`);
 		};
 	}
 
@@ -167,7 +162,6 @@ export class DOMWatcher {
 			? baseTarget.parentElement || baseTarget
 			: baseTarget;
 
-
 		if (!observerNode) {
 			callback();
 			return null;
@@ -214,7 +208,9 @@ export class DOMWatcher {
 	/**
 	 * Get the observation target element
 	 */
-	private getObserveTarget(currentRoot: Document | HTMLElement): HTMLElement | HTMLBodyElement | null {
+	private getObserveTarget(
+		currentRoot: Document | HTMLElement
+	): HTMLElement | HTMLBodyElement | null {
 		return (currentRoot instanceof Document ? currentRoot.body : currentRoot) || document.body;
 	}
 }
