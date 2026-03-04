@@ -1,7 +1,5 @@
 import type { InjectCallback, ObserverOptions } from '../type';
 
-/* TODO: Consider timeout-based destruction. Although the timeout parameter is already provided,
- there should be a mechanism to destroy observers when the target DOM will never appear, to avoid performance overhead.*/
 export class DOMWatcher {
 	/**
 	 * Observe the DOM for elements matching the given selector
@@ -46,7 +44,7 @@ export class DOMWatcher {
 		startObserve(root);
 
 		// Set timeout for auto-disconnect
-		if (options?.timeout) {
+		if (options?.timeout && !isDisconnected) {
 			setTimeout(() => {
 				disconnect();
 				console.warn(
@@ -65,7 +63,8 @@ export class DOMWatcher {
 		selector: string, // the selector to find the target element when it is re-added
 		onRemove: () => void, // this callback is clear the injected component instance and subapp
 		onRestore: InjectCallback, // callback when the target element is re-added
-		root: Document | HTMLElement = document
+		root: Document | HTMLElement = document,
+		Options: ObserverOptions
 	): () => void {
 		let isObserver: boolean = true;
 		this.setupRemovalObserver(
@@ -80,7 +79,7 @@ export class DOMWatcher {
 						onRestore(newTarget);
 					},
 					document,
-					{ once: true }
+					Options
 				);
 			},
 			root
@@ -183,10 +182,7 @@ export class DOMWatcher {
 			subtree: !!isDocument
 		});
 
-		console.log(
-			`[vue-injector] Removal observer started`,
-			observerNode
-		);
+		console.log(`[vue-injector] Removal observer started`, observerNode);
 		return observer;
 	}
 

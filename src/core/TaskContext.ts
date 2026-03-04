@@ -48,9 +48,7 @@ export class TaskContext {
 
 	public setPinia(piniaInstance: Pinia): void {
 		if (this.pinia) {
-			console.warn(
-				'[vue-injector] Pinia instance already set, overwriting'
-			);
+			console.warn('[vue-injector] Pinia instance already set, overwriting');
 		}
 		this.pinia = piniaInstance;
 	}
@@ -60,9 +58,7 @@ export class TaskContext {
 	public destroy(id: string): void {
 		const context: InjectionContext | undefined = this.contextMap.get(id);
 		if (!context) {
-			console.warn(
-				`[vue-injector] Task "${id}" not found, may already be destroyed`
-			);
+			console.warn(`[vue-injector] Task "${id}" not found, may already be destroyed`);
 			return;
 		}
 
@@ -125,12 +121,13 @@ export class TaskContext {
 				context.app = undefined;
 				context.instance = undefined;
 			} catch (error) {
-				console.error(`[vue-injector] Failed to unmount component for task "${id}":`, error);
+				console.error(
+					`[vue-injector] Failed to unmount component for task "${id}":`,
+					error
+				);
 			}
 		} else {
-			console.warn(
-				`[vue-injector] Component for task "${id}" already unmounted`
-			);
+			console.warn(`[vue-injector] Component for task "${id}" already unmounted`);
 		}
 	}
 
@@ -152,10 +149,7 @@ export class TaskContext {
 			context.appRoot.remove();
 			context.appRoot = undefined;
 		} catch (error) {
-			console.error(
-				`[vue-injector] Failed to remove root element for task "${id}":`,
-				error
-			);
+			console.error(`[vue-injector] Failed to remove root element for task "${id}":`, error);
 		}
 	}
 

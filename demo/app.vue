@@ -57,7 +57,7 @@ function runInjector() {
 
     injector = new Injector({
         alive: false,
-        scope: "local"
+        scope: "local",
     });
     injector.setPinia(pinia);
 
