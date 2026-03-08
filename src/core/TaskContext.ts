@@ -22,16 +22,8 @@ export class TaskContext {
 		return this.contextMap.has(key);
 	}
 
-	public delete(key: string): boolean {
-		return this.contextMap.delete(key);
-	}
-
 	public keys(): IterableIterator<string> {
 		return this.contextMap.keys();
-	}
-
-	public clear(): void {
-		this.contextMap.clear();
 	}
 
 	public getRunningFlag(): boolean {
@@ -63,11 +55,11 @@ export class TaskContext {
 		}
 
 		// Remove the corresponding task record from the injection point list
-		this.injectPoints = this.injectPoints.filter((record) => record.id !== id);
+		this.injectPoints = this.injectPoints.filter((record) => record.taskId !== id);
 
 		// Remove the corresponding task record from the error list
 		this.injectionErrorMessages = this.injectionErrorMessages.filter(
-			(error) => error.id !== id
+			(error) => error.taskId !== id
 		);
 
 		// Stop watcher
@@ -200,7 +192,17 @@ export class TaskContext {
 		// but keep the record in contextMap for future reuse
 		context.app = undefined;
 		context.instance = undefined;
+
+		context.appRoot?.remove();
 		context.appRoot = undefined;
+
+		context.isObserver = false;
+
+		if (context.watcher) {
+			context.watcher();
+			context.watcher = undefined;
+			context.watchSource = undefined;
+		}
 
 		//reset task listener
 		if (context.controller) {

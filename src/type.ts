@@ -24,13 +24,13 @@ export type ObserverOptions =
 	| { once?: boolean; timeout: number };
 
 export type InjectionRecord = {
-	id: string;
+	taskId: string;
 	injectAt: string;
 };
 
 export type InjectionErrorMessage = {
+	taskId: string;
 	injectAt: string;
-	id: string;
 };
 export type InjectionConfig = {
 	alive?: boolean;
@@ -65,6 +65,7 @@ export type InjectionContext = {
 
 	isObserver?: boolean;
 	alive?: boolean;
+	aliveEpoch?: number;
 	scope?: 'local' | 'global';
 	stopAlive?: () => void;
 };

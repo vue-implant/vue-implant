@@ -27,6 +27,7 @@ export class Injector {
 	// Unified injection context containing all component-related data
 	private readonly taskContext: TaskContext = new TaskContext();
 	private readonly domWatcher: DOMWatcher = new DOMWatcher();
+	private readonly anonymousComponentNames: WeakMap<object, string> = new WeakMap();
 	private readonly injectConfig: InjectionConfig = {
 		alive: false,
 		scope: 'local',
@@ -53,7 +54,7 @@ export class Injector {
 			throw new Error('[vue-injector] Pinia instance not set, call setPinia() before run()');
 		}
 		this.taskContext.setRunningFlag(true);
-		this.taskContext.injectPoints.forEach(({ id, injectAt }) => {
+		this.taskContext.injectPoints.forEach(({ taskId: id, injectAt }) => {
 			this.domWatcher.onDomReady(
 				injectAt,
 				(el): void => this.handleInjectionReady(el, id),
@@ -89,7 +90,7 @@ export class Injector {
 			context.activitySignal = activitySignal;
 		}
 		this.taskContext.set(id, context);
-		this.taskContext.injectPoints.push({ id: id, injectAt: listenAt });
+		this.taskContext.injectPoints.push({ taskId: id, injectAt: listenAt });
 		console.log(`[vue-injector] Listener "${id}" registered`);
 		return id;
 	}
@@ -118,6 +119,7 @@ export class Injector {
 			withEvent: false,
 
 			alive: option?.alive ?? this.injectConfig.alive,
+			aliveEpoch: 0,
 			scope: option?.scope ?? this.injectConfig.scope,
 			isObserver: false
 		};
@@ -138,7 +140,7 @@ export class Injector {
 
 		this.taskContext.set(taskId, context);
 		this.taskContext.injectPoints.push({
-			id: taskId,
+			taskId: taskId,
 			injectAt: injectAt
 		});
 		console.log(`[vue-injector] Task "${taskId}" registered`);
@@ -170,7 +172,12 @@ export class Injector {
 			return;
 		}
 
+		const aliveEpoch = (context.aliveEpoch ?? 0) + 1;
+		context.aliveEpoch = aliveEpoch;
 		context.alive = true;
+		context.isObserver = false;
+		// placeholder stop handler for pending async setup
+		context.stopAlive = () => {};
 
 		// Case 1: Component is already mounted and connected — set up the alive observer directly
 		if (context.app && context.appRoot?.isConnected) {
@@ -186,6 +193,8 @@ export class Injector {
 			const injectAt = context.componentInjectAt;
 
 			nextTick().then(() => {
+				if (!context.alive || context.aliveEpoch !== aliveEpoch) return;
+
 				const stopHandler = this.domWatcher.onDomAlive(
 					matchedElement,
 					injectAt,
@@ -199,6 +208,11 @@ export class Injector {
 						timeout: this.injectConfig.timeout
 					}
 				);
+
+				if (!context.alive || context.aliveEpoch !== aliveEpoch) {
+					stopHandler();
+					return;
+				}
 				context.stopAlive = stopHandler;
 				context.isObserver = true;
 				console.log(`[vue-injector] Task "${id}" alive observer activated`);
@@ -210,17 +224,19 @@ export class Injector {
 		// Re-trigger onDomReady to wait for the target element and re-inject
 		if (!context.app) {
 			let cancelled = false;
-			this.domWatcher.onDomReady(
+			const stopReadyObserver = this.domWatcher.onDomReady(
 				context.componentInjectAt,
 				(el): void => {
-					if (cancelled) return;
+					if (cancelled || !context.alive || context.aliveEpoch !== aliveEpoch) return;
 					this.handleInjectionReady(el, id);
 				},
 				document,
 				{ once: true, timeout: this.injectConfig.timeout }
 			);
 			context.stopAlive = () => {
+				if (cancelled) return;
 				cancelled = true;
+				stopReadyObserver();
 			};
 			context.isObserver = true;
 			console.log(`[vue-injector] Task "${id}" awaiting target element for re-injection`);
@@ -236,15 +252,17 @@ export class Injector {
 		}
 
 		// status check: if not set alive mode or no stopAlive handler, warn and exit
-		if (!context.alive || !context.stopAlive) {
+		if (!context.alive) {
 			console.warn(`[vue-injector] Task "${id}" has no active alive observer to stop`);
 			return;
 		}
 
-		context.stopAlive();
+		context.aliveEpoch = (context.aliveEpoch ?? 0) + 1;
+		const stopHandler = context.stopAlive;
 		context.alive = false;
 		context.isObserver = false;
 		context.stopAlive = undefined;
+		stopHandler?.();
 	}
 
 	public setPinia(pinia: Pinia): void {
@@ -252,10 +270,20 @@ export class Injector {
 	}
 
 	public destroyed(id: string): void {
+		const context: InjectionContext | undefined = this.taskContext.get(id);
+		if (context?.alive) {
+			this.stopAlive(id);
+		}
 		this.taskContext.destroy(id);
 	}
 
 	public destroyedAll(): void {
+		for (const id of this.taskContext.keys()) {
+			const context: InjectionContext | undefined = this.taskContext.get(id);
+			if (context?.alive) {
+				this.stopAlive(id);
+			}
+		}
 		this.taskContext.destroyedAll();
 	}
 
@@ -276,6 +304,10 @@ export class Injector {
 			},
 			{ immediate: true }
 		);
+
+		if (context.watcher) {
+			context.watcher();
+		}
 
 		context.watcher = unWatch;
 		context.watchSource = source;
@@ -358,13 +390,30 @@ export class Injector {
 	}
 
 	private getTaskId(component: Component, selector: string): string {
-		const name = this.getComponentName(component);
+		const name: string = this.getComponentName(component);
 		return name ? `${name}@${selector}` : `component-${selector}`;
 	}
 
 	private getComponentName(component: Component): string {
 		// biome-ignore lint: false positive
-		return component?.name || (component as any)?.__name || '';
+		const name: string = component?.name || (component as any)?.__name;
+		if (name) return name;
+
+		if (typeof component === 'string') {
+			return component;
+		}
+
+		if (typeof component === 'object' || typeof component === 'function') {
+			const cacheKey: object = component as unknown as object;
+			const cachedName: string | undefined = this.anonymousComponentNames.get(cacheKey);
+			if (cachedName) return cachedName;
+
+			const generatedName: string = `component-${UUID()}`;
+			this.anonymousComponentNames.set(cacheKey, generatedName);
+			return generatedName;
+		}
+
+		return 'component-anonymous';
 	}
 
 	// Event binding function
@@ -403,7 +452,6 @@ export class Injector {
 		return proxyController;
 	}
 
-	// TODD:considering to the "Race Condition" that may occur when the component is injecting and then the app host be removed
 	// Inject component into the matched DOM element
 	private injectComponent(matchedElement: HTMLElement, taskId: string): boolean {
 		const context: InjectionContext | undefined = this.taskContext.get(taskId);
@@ -459,10 +507,19 @@ export class Injector {
 			);
 
 			if (context.alive && !context.isObserver) {
+				const aliveEpoch = context.aliveEpoch ?? 0;
 				// Injection re-injection mechanism
 				// if write 'global', the watcher will observer the document body element
 				// if write 'local', the watcher will observe the matchedElement, which is the component's host element
 				nextTick().then(() => {
+					// if changes happen during async setup, directly return
+					if (
+						!context.alive ||
+						context.aliveEpoch !== aliveEpoch ||
+						context.app !== subApp
+					)
+						return;
+
 					const stopHandler = this.domWatcher.onDomAlive(
 						matchedElement,
 						injectAt,
@@ -476,6 +533,17 @@ export class Injector {
 							timeout: this.injectConfig.timeout
 						}
 					);
+
+					// if changes happen during async setup,
+					// do not activate observer and clean up the listener
+					if (
+						!context.alive ||
+						context.aliveEpoch !== aliveEpoch ||
+						context.app !== subApp
+					) {
+						stopHandler();
+						return;
+					}
 					context.stopAlive = stopHandler;
 					context.isObserver = true;
 					console.log(`[vue-injector] Task "${taskId}" alive observer activated`);

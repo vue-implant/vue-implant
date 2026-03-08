@@ -9,7 +9,7 @@ export class DOMWatcher {
 		callback: InjectCallback,
 		root: Document | HTMLElement = document,
 		options: ObserverOptions
-	): void {
+	): () => void {
 		const observers: MutationObserver[] = [];
 		let isDisconnected = false;
 
@@ -44,14 +44,17 @@ export class DOMWatcher {
 		startObserve(root);
 
 		// Set timeout for auto-disconnect
-		if (options?.timeout && !isDisconnected) {
+		if (options?.timeout) {
 			setTimeout(() => {
+				if (isDisconnected) return;
 				disconnect();
 				console.warn(
 					`[vue-injector] Element "${selector}" not found within ${options.timeout}ms, observer disconnected`
 				);
 			}, options.timeout);
 		}
+
+		return disconnect;
 	}
 	/**
 	 *  public api for observing dom is alive, which mean the target element may accident be removed,
@@ -67,12 +70,14 @@ export class DOMWatcher {
 		Options: ObserverOptions
 	): () => void {
 		let isObserver: boolean = true;
-		this.setupRemovalObserver(
+		let stopReadyObserver: (() => void) | undefined;
+
+		const removalObserver = this.setupRemovalObserver(
 			target,
 			() => {
 				onRemove();
 				if (!isObserver) return;
-				this.onDomReady(
+				stopReadyObserver = this.onDomReady(
 					selector,
 					(newTarget) => {
 						if (!isObserver) return;
@@ -84,8 +89,12 @@ export class DOMWatcher {
 			},
 			root
 		);
+
 		return () => {
+			if (!isObserver) return;
 			isObserver = false;
+			removalObserver?.disconnect();
+			stopReadyObserver?.();
 			console.log(`[vue-injector] Alive observer for "${selector}" stopped`);
 		};
 	}
@@ -157,6 +166,7 @@ export class DOMWatcher {
 			return null;
 		}
 
+		// if not documnet, observe the parent element, otherwise observe the body
 		const observerNode: HTMLElement | null = !isDocument
 			? baseTarget.parentElement || baseTarget
 			: baseTarget;
