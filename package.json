@@ -1,8 +1,20 @@
 {
   "name": "vue-injector",
-  "private": true,
   "version": "0.0.1",
   "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/vue-injector.umd.cjs",
+  "types": "./dist/types/index.d.ts",
+  "module": "./dist/vue-injector.js",
+  "exports": {
+    ".": {
+      "types": "./dist/types/vue-injector.d.ts",
+      "import": "./dist/vue-injector.js",
+      "require": "./dist/vue-injector.umd.cjs"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -22,12 +34,12 @@
     "pinia": "^3.0.4",
     "typescript": "~5.9.3",
     "vite": "^8.0.0-beta.13",
+    "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.0.18",
     "vue": "^3.5.29",
     "vue-tsc": "^3.1.5"
   },
   "peerDependencies": {
-    "pinia": "^3.0.4",
     "vue": "^3.5.29"
   },
   "overrides": {
