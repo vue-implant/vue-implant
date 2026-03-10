@@ -1,4 +1,3 @@
-import type { Pinia } from 'pinia';
 import {
 	type App,
 	type Component,
@@ -6,6 +5,7 @@ import {
 	createApp,
 	markRaw,
 	nextTick,
+	type Plugin,
 	type Ref,
 	type WatchHandle,
 	type WatchSource,
@@ -49,9 +49,6 @@ export class Injector {
 			throw new Error(
 				'[vue-injector] No registered tasks found, call register() before run()'
 			);
-		}
-		if (!this.taskContext.getPinia()) {
-			throw new Error('[vue-injector] Pinia instance not set, call setPinia() before run()');
 		}
 		this.taskContext.setRunningFlag(true);
 		this.taskContext.injectPoints.forEach(({ taskId: id, injectAt }) => {
@@ -265,7 +262,7 @@ export class Injector {
 		stopHandler?.();
 	}
 
-	public setPinia(pinia: Pinia): void {
+	public setPinia<T extends Plugin>(pinia: T): void {
 		this.taskContext.setPinia(pinia);
 	}
 
@@ -295,6 +292,13 @@ export class Injector {
 			return;
 		}
 
+		// Stop the previous watcher before creating a new one
+		// to avoid both firing simultaneously during the immediate callback
+		if (context.watcher) {
+			context.watcher();
+			context.watcher = undefined;
+		}
+
 		const unWatch: WatchHandle = watch(
 			source,
 			(newSignal) => {
@@ -304,10 +308,6 @@ export class Injector {
 			},
 			{ immediate: true }
 		);
-
-		if (context.watcher) {
-			context.watcher();
-		}
 
 		context.watcher = unWatch;
 		context.watchSource = source;
@@ -466,7 +466,7 @@ export class Injector {
 		}
 
 		const injectAt: string = context.componentInjectAt;
-		const pinia: Pinia = this.taskContext.getPinia() as Pinia;
+		const pinia: Plugin | null = this.taskContext.getPinia();
 
 		if (!context?.component || !context.taskId) {
 			console.error(
@@ -494,7 +494,9 @@ export class Injector {
 		try {
 			// Create a Vue app instance and mount it to the newly created DOM node
 			const subApp: App<Element> = createApp(context.component);
-			subApp.use(pinia);
+			if (pinia) {
+				subApp.use(pinia);
+			}
 			const vm: ComponentPublicInstance = subApp.mount(appRoot);
 
 			// Save to context

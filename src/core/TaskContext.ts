@@ -1,4 +1,4 @@
-import type { Pinia } from 'pinia';
+import type { Plugin } from 'vue';
 import type { InjectionContext, InjectionErrorMessage, InjectionRecord } from '../type';
 
 export class TaskContext {
@@ -7,7 +7,7 @@ export class TaskContext {
 
 	private readonly contextMap: Map<string, InjectionContext> = new Map();
 
-	private pinia: Pinia | null = null;
+	private pinia: Plugin | null = null;
 	private isRunning: boolean = false;
 
 	public set(key: string, context: InjectionContext): void {
@@ -34,11 +34,11 @@ export class TaskContext {
 		this.isRunning = flag;
 	}
 
-	public getPinia(): Pinia | null {
+	public getPinia(): Plugin | null {
 		return this.pinia;
 	}
 
-	public setPinia(piniaInstance: Pinia): void {
+	public setPinia<T extends Plugin>(piniaInstance: T): void {
 		if (this.pinia) {
 			console.warn('[vue-injector] Pinia instance already set, overwriting');
 		}
