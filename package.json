@@ -1,5 +1,5 @@
 {
-  "name": "vue-injector",
+  "name": "vue-implant",
   "version": "0.0.1",
   "type": "module",
   "files": [
@@ -10,7 +10,7 @@
   "module": "./dist/vue-injector.js",
   "exports": {
     ".": {
-      "types": "./dist/types/vue-injector.d.ts",
+      "types": "./dist/types/index.d.ts",
       "import": "./dist/vue-injector.js",
       "require": "./dist/vue-injector.umd.cjs"
     }
@@ -40,7 +40,13 @@
     "vue-tsc": "^3.1.5"
   },
   "peerDependencies": {
+    "pinia": "^3.0.4",
     "vue": "^3.5.29"
+  },
+  "peerDependenciesMeta": {
+    "pinia": {
+      "optional": true
+    }
   },
   "overrides": {
     "vite": "^8.0.0-beta.13"

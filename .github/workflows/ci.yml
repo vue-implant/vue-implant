@@ -1,0 +1,38 @@
+name: CI Workflow
+
+on:
+    pull_request:
+        branches:
+            - main
+        paths-ignore:
+            - "**.md"
+            - "LICENSE"
+            - ".gitignore"
+
+jobs:
+    build-and-test:
+        runs-on: ubuntu-latest
+
+        steps:
+            # 1. 拉取代码
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            # 2. 安装 Node.js 环境
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: "npm"
+
+            # 3. 安装依赖包
+            - name: Install dependencies
+              run: npm install
+
+            # 4. 运行测试 (Vitest)
+            - name: Run tests
+              run: npm run test
+
+            # 5. 执行项目构建 (Vite)
+            - name: Build project
+              run: npm run build
