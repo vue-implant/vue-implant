@@ -224,7 +224,12 @@ export class Injector {
 			const stopReadyObserver = this.domWatcher.onDomReady(
 				context.componentInjectAt,
 				(el): void => {
-					if (cancelled || !context.alive || context.aliveEpoch !== aliveEpoch) return;
+					if (cancelled || !context.alive || context.aliveEpoch !== aliveEpoch) {
+						console.warn(
+							`[vue-injector] Task "${id}" alive epoch changed before element appears`
+						);
+						return;
+					}
 					this.handleInjectionReady(el, id);
 				},
 				document,
@@ -262,6 +267,10 @@ export class Injector {
 		stopHandler?.();
 	}
 
+	public getTaskContext(): TaskContext | undefined {
+		return this.taskContext;
+	}
+
 	public setPinia<T extends Plugin>(pinia: T): void {
 		this.taskContext.setPinia(pinia);
 	}
@@ -283,7 +292,7 @@ export class Injector {
 		}
 		this.taskContext.destroyedAll();
 	}
-
+	// TODO: add config option to enable flush sync or pre
 	public bindActivitySignal(id: string, source: WatchSource<boolean>): void {
 		// Bind a reactive signal to control automatic listener attach/detach for this task
 		const context: InjectionContext | undefined = this.taskContext.get(id);
