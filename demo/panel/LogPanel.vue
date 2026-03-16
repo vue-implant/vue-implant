@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ name: 'LogPanel' })
+
 import { useLogs } from '../logger'
 
 const { logs, clearLogs } = useLogs()

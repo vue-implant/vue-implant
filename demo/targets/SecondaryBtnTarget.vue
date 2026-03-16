@@ -3,7 +3,7 @@ import Target from './Target.vue';
 
 const props = defineProps<{
     title: string
-    index: string
+    index: string | number
     componentAt?: string
     listenerAt?: string
     desc: string

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ name: 'AppHeader' })
+
 defineProps<{
     isRunning: boolean
 }>()

@@ -1,7 +1,6 @@
-<script lang="ts">
-export default { name: 'InjectedBadge' }
-</script>
 <script setup lang="ts">
+defineOptions({ name: 'InjectedBadge' })
+
 const props = defineProps<{ label?: string; color?: string }>()
 </script>
 <template>

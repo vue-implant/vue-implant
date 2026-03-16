@@ -3,7 +3,7 @@ import Target from './Target.vue';
 
 const props = defineProps<{
     title: string
-    index: string
+    index: string | number
     componentAt?: string
     listenerAt?: string
     desc: string
@@ -12,7 +12,7 @@ const props = defineProps<{
 
 const activitySignal = defineModel<boolean>('activitySignal');
 const updateState = () => {
-    activitySignal.value = !activitySignal.value;
+    activitySignal.value = !Boolean(activitySignal.value);
 }
 
 </script>

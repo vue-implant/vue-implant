@@ -1,22 +1,20 @@
-<script lang="ts">
-export default { name: 'App' }
-</script>
 <script setup lang="ts">
+defineOptions({ name: 'App' })
+
 import { createPinia } from 'pinia'
 import { onMounted, onUnmounted, provide, reactive, ref } from 'vue'
 import { Injector } from '../src'
-import { addLog, patchConsole } from './logger'
-import InjectedBadge from './testComponent/InjectedBadge.vue'
-import InjectedCounter from './testComponent/InjectedCounter.vue'
-import InjectedTooltip from './testComponent/InjectedTooltip.vue'
-import Target from './targets/Target.vue'
-import DelayTarget from './targets/DelayTarget.vue'
-import SecondaryBtnTarget from './targets/SecondaryBtnTarget.vue'
-import SignalTarget from './targets/SignalTarget.vue'
-import ListenerTarget from './targets/listenerTarget.vue'
-import LogPanel from './panel/LogPanel.vue'
-import AppHeader from './panel/AppHeader.vue'
-import ReInjectTarget from './targets/ReInjectTarget.vue'
+import { addLog, patchConsole } from './'
+import { InjectedBadge, InjectedCounter, InjectedTooltip } from './testComponent'
+import {
+    DelayTarget,
+    ListenerTarget,
+    ReInjectTarget,
+    SecondaryBtnTarget,
+    SignalTarget,
+    Target,
+} from './targets'
+import { AppHeader, LogPanel } from './panel'
 
 
 const pinia = createPinia()
@@ -27,13 +25,14 @@ let injector: Injector | null = null
 
 const activitySignal = ref(true)       // activity signal toggle
 const isRunning = ref(false)
+type RegisterResult = ReturnType<Injector['register']>
 type TargetResults = {
     injectorInstance: Injector | null
-    target1: ReturnType<Injector['register']> | null
-    target2: ReturnType<Injector['register']> | null
-    target3: ReturnType<Injector['register']> | null
-    target4: ReturnType<Injector['register']> | null
-    target6: ReturnType<Injector['register']> | null
+    target1: RegisterResult | null
+    target2: RegisterResult | null
+    target3: RegisterResult | null
+    target4: RegisterResult | null
+    target6: RegisterResult | null
 }
 
 // 必须在 setup 顶层调用 provide，这里提供一个响应式对象，后续直接修改其属性

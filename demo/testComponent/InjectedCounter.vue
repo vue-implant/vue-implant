@@ -1,7 +1,6 @@
-<script lang="ts">
-export default { name: 'InjectedCounter' }
-</script>
 <script setup lang="ts">
+defineOptions({ name: 'InjectedCounter' })
+
 import { ref } from 'vue'
 const count = ref(0)
 </script>

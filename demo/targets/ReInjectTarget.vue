@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, inject } from 'vue';
+import { ref, computed, inject, onUnmounted } from 'vue';
 import Target from './Target.vue';
 import { type Injector } from '../../src';
 const props = defineProps<{
     title: string
-    index: string
+    index: string | number
     componentAt?: string
     desc: string
     targetLabel: string
@@ -34,6 +34,9 @@ const targetResults = (inject<TargetResults>('componentInfo') as TargetResults);
 const disappearTarget = () => {
     if (disappearDisabled.value) return;
     phase.value = 'pending-hide';
+    if (timer) {
+        clearTimeout(timer);
+    }
     timer = setTimeout(() => {
         isShowDelay.value = false;
         phase.value = 'idle-hidden';
@@ -43,6 +46,9 @@ const disappearTarget = () => {
 const appearTarget = () => {
     if (appearDisabled.value) return;
     phase.value = 'pending-show';
+    if (timer) {
+        clearTimeout(timer);
+    }
     timer = setTimeout(() => {
         isShowDelay.value = true;
         phase.value = 'idle-visible';
@@ -58,6 +64,13 @@ const handleStopAlive = () => {
     targetResults.target6.stopAlive();
     aliveActive.value = false;
 }
+
+onUnmounted(() => {
+    if (timer) {
+        clearTimeout(timer);
+        timer = null;
+    }
+});
 
 
 </script>

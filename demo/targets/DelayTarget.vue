@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { onUnmounted } from 'vue';
 
 import Target from './Target.vue';
 
 const props = defineProps<{
     title: string
-    index: string
+    index: string | number
     componentAt?: string
     desc: string
     targetLabel: string
@@ -16,10 +17,20 @@ const isShowDelayModel = defineModel<boolean>('isShowDelay', { default: true });
 let timer: ReturnType<typeof setTimeout> | null = null
 function delayShowTarget2() {
     isShowDelayModel.value = true;
+    if (timer) {
+        clearTimeout(timer);
+    }
     timer = setTimeout(() => {
         isShowDelayModel.value = false;
     }, props.delayTime);
 }
+
+onUnmounted(() => {
+    if (timer) {
+        clearTimeout(timer);
+        timer = null;
+    }
+});
 
 </script>
 <template>

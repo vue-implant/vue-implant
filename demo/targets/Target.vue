@@ -5,7 +5,7 @@ const isRunning = inject<Ref<boolean>>('isRunning', ref(false));
 
 const props = withDefaults(defineProps<{
     title: string
-    index: string
+    index: string | number
     componentAt?: string
     listenerAt?: string
     desc: string
@@ -15,7 +15,7 @@ const props = withDefaults(defineProps<{
 
 const isShowDelay = defineModel<boolean>('isShowDelay', { default: true });
 const isShowTargetBox = defineModel<boolean>('isShowTargetBox', { default: true });
-const activitySignal = defineModel<boolean>('activitySignal', { default: undefined });
+const activitySignal = defineModel<boolean | undefined>('activitySignal', { default: undefined });
 
 
 </script>

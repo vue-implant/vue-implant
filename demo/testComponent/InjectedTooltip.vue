@@ -1,7 +1,6 @@
-<script lang="ts">
-export default { name: 'InjectedTooltip' }
-</script>
 <script setup lang="ts">
+defineOptions({ name: 'InjectedTooltip' })
+
 import { ref } from 'vue'
 const visible = ref(false)
 </script>
