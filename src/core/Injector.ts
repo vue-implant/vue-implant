@@ -46,13 +46,19 @@ export class Injector {
 			);
 		}
 		this.taskContext.taskRecords.forEach(({ taskId: id, injectAt }) => {
-			if (this.taskContext.isTaskActive(id) === true) return;
+			const status = this.taskContext.getTaskStatus(id);
+			if (status === 'active' || status === 'pending') return;
+
 			this.domWatcher.onDomReady(
 				injectAt,
 				(el): void => this.handleInjectionReady(el, id),
 				document,
 				{ once: true, timeout: this.injectConfig.timeout }
 			);
+			if (this.taskContext.getTaskStatus(id) !== 'active') {
+				// when the target element is exist, will sync call the func ,so we do not set to pending
+				this.taskContext.setTaskStatus(id, 'pending');
+			}
 		});
 	}
 
@@ -75,7 +81,7 @@ export class Injector {
 
 		const context: Task = {
 			taskId: id,
-			isActive: false,
+			taskStatus: 'idle',
 			listenerName: id,
 			withEvent: true,
 			listenAt,
@@ -115,7 +121,7 @@ export class Injector {
 		// Use unified Task to store all information
 		const context: Task = {
 			taskId,
-			isActive: false,
+			taskStatus: 'idle',
 			componentName: this.getComponentName(component),
 			componentInjectAt: injectAt,
 			component: this.markRawComponent(component),
@@ -318,14 +324,14 @@ export class Injector {
 		this.taskContext.destroyedAll();
 	}
 	// TODO: add config option to enable flush sync or pre
-	public bindActivitySignal(taskId: string, source: WatchSource<boolean>): void {
+	public bindActivitySignal(taskId: string, source: WatchSource<boolean>): boolean {
 		// Bind a reactive signal to control automatic listener attach/detach for this task
 		const context: Task | undefined = this.taskContext.get(taskId);
 		if (!context) {
 			console.error(
 				`[vue-injector] Task "${taskId}" not found, unable to bind activity signal`
 			);
-			return;
+			return false;
 		}
 
 		// Stop the previous watcher before creating a new one
@@ -335,31 +341,37 @@ export class Injector {
 			context.watcher = undefined;
 		}
 
-		const unWatch: WatchHandle = watch(
-			source,
-			(newSignal) => {
-				this.listenerActivity(taskId, newSignal ? Action.OPEN : Action.CLOSE);
-			},
-			{ immediate: true }
-		);
+		try {
+			const unWatch: WatchHandle = watch(
+				source,
+				(newSignal) => {
+					this.listenerActivity(taskId, newSignal ? Action.OPEN : Action.CLOSE);
+				},
+				{ immediate: true }
+			);
 
-		context.watcher = unWatch;
-		context.watchSource = source;
+			context.watcher = unWatch;
+			context.watchSource = source;
+			return true;
+		} catch (e) {
+			console.error(`[vue-injector] Failed to bind activity signal for task "${taskId}":`, e);
+			return false;
+		}
 	}
 
-	public listenerActivity(taskId: string, event: ActionEvent): void {
+	public listenerActivity(taskId: string, event: ActionEvent): boolean {
 		const context: Task | undefined = this.taskContext.get(taskId);
 		if (!context) {
 			console.error(
 				`[vue-injector] Task "${taskId}" not found, unable to manage listener state`
 			);
-			return;
+			return false;
 		}
 
 		// Check if event binding is configured
 		if (!context.withEvent || !context.listenAt || !context.event || !context.callback) {
 			console.warn(`[vue-injector] Task "${taskId}" has no event binding configured`);
-			return;
+			return false;
 		}
 
 		switch (event) {
@@ -400,8 +412,10 @@ export class Injector {
 
 			default: {
 				console.warn(`[vue-injector] Unknown action type "${event}" for task "${taskId}"`);
+				return false;
 			}
 		}
+		return true;
 	}
 
 	private handleInjectionReady(targetElement: HTMLElement, taskId: string): void {
@@ -413,23 +427,35 @@ export class Injector {
 			return;
 		}
 
-		if (context.isActive) {
+		if (context.taskStatus === 'active') {
 			return;
 		}
 
-		context.isActive = true;
 		// Mount component
 		if (context.component) {
-			this.injectComponent(targetElement, taskId);
-		}
-		// If event binding is configured, bind the event
-		if (context.withEvent) {
-			if (context.activitySignal) {
-				this.bindActivitySignal(taskId, context.activitySignal());
-			} else {
-				this.listenerActivity(taskId, Action.OPEN);
+			const result: boolean = this.injectComponent(targetElement, taskId);
+			if (!result) {
+				context.taskStatus = 'idle';
+				return;
 			}
 		}
+
+		// If event binding is configured, bind the event
+		if (context.withEvent) {
+			let result: boolean | null = null;
+			if (context.activitySignal) {
+				result = this.bindActivitySignal(taskId, context.activitySignal());
+			} else {
+				result = this.listenerActivity(taskId, Action.OPEN);
+			}
+
+			if (result === false) {
+				context.taskStatus = 'idle';
+				return;
+			}
+		}
+
+		context.taskStatus = 'active';
 	}
 
 	private getTaskId(component: Component, selector: string): string {

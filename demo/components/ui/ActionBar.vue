@@ -2,7 +2,6 @@
 defineOptions({ name: 'ActionBar' })
 
 const props = defineProps<{
-    isRunning: boolean
     activitySignal: boolean
 }>()
 
@@ -16,7 +15,7 @@ const emit = defineEmits<{
 <template>
     <section class="actions">
         <div class="btn-group">
-            <button class="btn btn-primary" :disabled="props.isRunning" @click="emit('run')">
+            <button class="btn btn-primary"  @click="emit('run')">
                 Run Injector
             </button>
             <button class="btn btn-plain" @click="emit('reset')">

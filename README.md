@@ -26,7 +26,7 @@ It is suitable for scenarios where page structures are unstable, async rendering
 
 ## Demo 🎬
 
-There is no public demo site yet. You can run the local `demo/` in this repository for a hands-on experience.
+There is no public demo site yet. You can run the local `demo/` in this repository for a hands-on experience, or build a static demo site into `docs/` for GitHub Pages.
 
 ## Installation 📦
 
@@ -90,8 +90,8 @@ type InjectionConfig = {
 
 Starts the injection process and handles registered tasks.
 
-> [!WARNING]
-> You must complete registrations like `register` / `registerListener` before calling `run()`; new registrations after `run()` will be ignored with warnings.
+> [!NOTE]
+> `run()` is idempotent. Repeated calls are safe and only activate tasks that are not already active/pending.
 
 ### `Injector.register(injectAt: string, component: Component, option?: ComponentOptions): RegisterResult`
 
@@ -127,8 +127,8 @@ Return value:
 > [!NOTE]
 > Re-registering the same component at the same target will not throw; it warns and returns the first registration result.
 
-> [!WARNING]
-> When called after `run()`, `isSuccess` is `false`, and `keepAlive` / `stopAlive` are empty functions.
+> [!NOTE]
+> You can call `register()` after `run()`. The new task will be activated on the next `run()` call.
 
 ### `Injector.registerListener(listenAt: string, event: string, callback: EventListener, activitySignal?: () => Ref<boolean>): ListenerRegisterResult`
 
@@ -146,13 +146,13 @@ Return value:
 | Property | Type | Description |
 | --- | --- | --- |
 | `taskId` | `string` | Unique listener task identifier. |
-| `isSuccess` | `boolean` | Whether registration succeeds (`false` when ignored). |
+| `isSuccess` | `boolean` | Whether registration succeeds. |
 
 > [!NOTE]
 > Re-registering the same `listenAt + event` will not throw; it warns and returns the same `taskId`.
 
-> [!WARNING]
-> When called after `run()`, registration is ignored and returns `isSuccess = false`.
+> [!NOTE]
+> You can call `registerListener()` after `run()`. The new listener task will be activated on the next `run()` call.
 
 ### `Injector.keepAlive(taskId: string): void`
 
@@ -267,7 +267,7 @@ Behavior summary:
 - Calls context-level full reset once to clean runtime fields of every task.
 - Keeps task registrations and task IDs in context.
 
-### `Injector.bindActivitySignal(taskId: string, source: WatchSource<boolean>): void`
+### `Injector.bindActivitySignal(taskId: string, source: WatchSource<boolean>): boolean`
 
 Binds an external reactive signal to listener activation: listener opens when `true`, closes when `false`.
 
@@ -298,7 +298,7 @@ injector.bindActivitySignal(taskId, enabled);
 injector.run();
 ```
 
-### `Injector.listenerActivity(taskId: string, event: ActionEvent): void`
+### `Injector.listenerActivity(taskId: string, event: ActionEvent): boolean`
 
 Manually controls the external listener state of a registered task: `Action.OPEN` to enable, `Action.CLOSE` to disable.
 
@@ -335,9 +335,9 @@ injector.listenerActivity(taskId, Action.CLOSE);
 
 ## FAQ ❓
 
-### 1) Why does calling `register` / `registerListener` after `run()` not work?
+### 1) Can I call `register` / `registerListener` after `run()`?
 
-This is by design: `run()` starts and locks the current task scheduling cycle. New registrations after running are ignored and return `isSuccess = false` (or emit corresponding warnings). In later versions, there may be a dedicated API for post-`run()` registration, or `run()` may be significantly redesigned.
+Yes. New registrations are allowed after `run()`. Call `run()` again to activate newly registered tasks. Existing active/pending tasks are skipped.
 
 ### 2) Does duplicate `registerListener` throw an error?
 
@@ -369,6 +369,12 @@ cd vue-implant
 git switch -c feat/your-feature-name
 npm install 
 npm run build
+```
+
+**Run demo app:**
+
+```bash
+npm run demo:dev
 ```
 
 **Test:**

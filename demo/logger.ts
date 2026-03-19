@@ -1,31 +1,43 @@
 import { ref } from 'vue'
 
-export interface LogEntry {
-    time: string
-    level: 'info' | 'warn' | 'error'
-    msg: string
+const logs = ref<string[]>([])
+
+export function addLog(msg: string) {
+    logs.value.unshift(`[${new Date().toLocaleTimeString()}] ${msg}`)
+    if (logs.value.length > 12) logs.value.pop()
 }
 
-const logs = ref<LogEntry[]>([])
+export function patchConsoleForInjector(onLog: (msg: string) => void = addLog) {
+    const original = {
+        log: console.log,
+        warn: console.warn,
+        error: console.error,
+    }
 
-export function addLog(level: LogEntry['level'], msg: string) {
-    const time = new Date().toLocaleTimeString()
-    logs.value.unshift({ time, level, msg })
-    if (logs.value.length > 50) logs.value.pop()
+    console.log = (...args) => {
+        original.log(...args)
+        if (String(args[0]).startsWith('[vue-injector]')) onLog(args.join(' '))
+    }
+    console.warn = (...args) => {
+        original.warn(...args)
+        if (String(args[0]).startsWith('[Injector')) onLog(args.join(' '))
+    }
+    console.error = (...args) => {
+        original.error(...args)
+        if (String(args[0]).startsWith('[Injector')) onLog(args.join(' '))
+    }
+
+    return () => {
+        console.log = original.log
+        console.warn = original.warn
+        console.error = original.error
+    }
 }
 
-export function clearLogs() {
-    logs.value = []
-}
-
-export function patchConsole() {
-    const ori = { log: console.log, warn: console.warn, error: console.error }
-    console.log = (...a) => { ori.log(...a); if (String(a[0]).startsWith('[Injector')) addLog('info', a.join(' ')) }
-    console.warn = (...a) => { ori.warn(...a); if (String(a[0]).startsWith('[Injector')) addLog('warn', a.join(' ')) }
-    console.error = (...a) => { ori.error(...a); if (String(a[0]).startsWith('[Injector')) addLog('error', a.join(' ')) }
-    return () => { console.log = ori.log; console.warn = ori.warn; console.error = ori.error }
-}
-
-export function useLogs() {
-    return { logs, addLog, clearLogs, patchConsole }
+export function useDemoLogger() {
+    return {
+        logs,
+        addLog,
+        patchConsoleForInjector,
+    }
 }

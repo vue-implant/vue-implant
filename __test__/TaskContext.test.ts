@@ -65,16 +65,25 @@ describe('TaskContext', () => {
 			expect(taskContext.get('test2')).toBeUndefined();
 		});
 	});
-	describe('running flag', () => {
-		it('should set and get running flag correctly', () => {
-			expect(taskContext.getRunningFlag()).toBe(false);
-			taskContext.setRunningFlag(true);
-			expect(taskContext.getRunningFlag()).toBe(true);
+	describe('task active state', () => {
+		it('should return null for unknown task and read active state for existing task', () => {
+			expect(taskContext.getTaskStatus('missing')).toBeUndefined();
+
+			taskContext.set('inactive', { taskId: 'inactive', taskStatus: 'idle' });
+			taskContext.set('active', { taskId: 'active', taskStatus: 'active' });
+
+			expect(taskContext.getTaskStatus('inactive')).toBe('idle');
+			expect(taskContext.getTaskStatus('active')).toBe('active');
+		});
+		it('should set task status correctly', () => {
+			taskContext.set('test', { taskId: 'test', taskStatus: 'idle' });
+			taskContext.setTaskStatus('test', 'active');
+			expect(taskContext.getTaskStatus('test')).toBe('active');
 		});
 	});
 	describe('destroy', () => {
 		it('should delete context of none existing id correctly', () => {
-			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			taskContext.destroy('nonexistent');
 			expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('nonexistent'));
 		});
@@ -98,7 +107,7 @@ describe('TaskContext', () => {
 			expect(taskContext.taskErrorMessages).toHaveLength(0);
 		});
 		it('should destroy context of watcher correctly', () => {
-			const spy = vi.fn(() => { });
+			const spy = vi.fn(() => {});
 
 			const mockWatcher = spy as unknown as WatchHandle;
 
@@ -113,7 +122,7 @@ describe('TaskContext', () => {
 			expect(spy).toHaveBeenCalled();
 		});
 		it('should destroy context of listener correctly', () => {
-			const mockFn = vi.fn(() => { });
+			const mockFn = vi.fn(() => {});
 			const context: Task = {
 				taskId: 'test',
 				listenerName: 'testListener',
@@ -227,10 +236,12 @@ describe('TaskContext', () => {
 			expect(taskContext.taskRecords).toHaveLength(0);
 			expect(taskContext.taskErrorMessages).toHaveLength(0);
 		});
-		it('should reset isRunning flag', () => {
-			taskContext.setRunningFlag(true);
+		it('should clear all tasks after destroyedAll', () => {
+			taskContext.set('destroy-all-a', { taskId: 'destroy-all-a', taskStatus: 'active' });
+			taskContext.set('destroy-all-b', { taskId: 'destroy-all-b', taskStatus: 'idle' });
 			taskContext.destroyedAll();
-			expect(taskContext.getRunningFlag()).toBe(false);
+			expect(taskContext.get('destroy-all-a')).toBeUndefined();
+			expect(taskContext.get('destroy-all-b')).toBeUndefined();
 		});
 		it('should destroy all contexts with watchers and listeners correctly', () => {
 			const mockWatcher1 = vi.fn() as unknown as WatchHandle;
@@ -305,7 +316,7 @@ describe('TaskContext', () => {
 			};
 
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 			taskContext.releaseComponentInstance('test');
 
@@ -326,7 +337,7 @@ describe('TaskContext', () => {
 			};
 
 			taskContext.set('test', context);
-			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 			taskContext.releaseComponentInstance('test');
 
@@ -348,7 +359,7 @@ describe('TaskContext', () => {
 		});
 
 		it('should warn if context not found', () => {
-			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			taskContext.releaseDomElement('nonexistent');
 			expect(consoleWarnSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Task "nonexistent" context not found')
@@ -361,7 +372,7 @@ describe('TaskContext', () => {
 				appRoot: undefined
 			};
 			taskContext.set('test', context);
-			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			taskContext.releaseDomElement('test');
 			expect(consoleWarnSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Root element for task "test" not found')
@@ -377,7 +388,7 @@ describe('TaskContext', () => {
 				appRoot: { remove: mockRemove } as unknown as HTMLElement
 			};
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			taskContext.releaseDomElement('test');
 			expect(mockRemove).toHaveBeenCalled();
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -411,7 +422,7 @@ describe('TaskContext', () => {
 			expect(context.activitySignal).toBeUndefined();
 		});
 		it('should do nothing if context not found', () => {
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			taskContext.releaseListener('nonexistent');
 			expect(consoleErrorSpy).not.toHaveBeenCalled();
 		});
@@ -430,7 +441,7 @@ describe('TaskContext', () => {
 				controller: { abort: mockAbort } as unknown as AbortController
 			};
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			taskContext.releaseListener('test');
 			expect(mockAbort).toHaveBeenCalled();
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -451,7 +462,7 @@ describe('TaskContext', () => {
 				controller: undefined
 			};
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			taskContext.releaseListener('test');
 			expect(consoleErrorSpy).not.toHaveBeenCalled();
 		});
@@ -476,7 +487,7 @@ describe('TaskContext', () => {
 				watcher: undefined
 			};
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			taskContext.releaseWatcher('test');
 			expect(consoleErrorSpy).not.toHaveBeenCalled();
 		});
@@ -490,7 +501,7 @@ describe('TaskContext', () => {
 				watcher: mockWatcher
 			};
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			taskContext.releaseWatcher('test');
 			expect(mockWatcher).toHaveBeenCalled();
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -553,12 +564,14 @@ describe('TaskContext', () => {
 		});
 		it('should stay in map after resetState', () => {
 			const context: Task = {
-				taskId: 'test'
+				taskId: 'test',
+				taskStatus: 'idle'
 			};
 			taskContext.set('test', context);
 			taskContext.resetState('test');
 			expect(taskContext.get('test')).toEqual({
 				taskId: 'test',
+				taskStatus: 'idle',
 				app: undefined,
 				appRoot: undefined,
 				instance: undefined,
@@ -620,4 +633,3 @@ describe('TaskContext', () => {
 		});
 	});
 });
-

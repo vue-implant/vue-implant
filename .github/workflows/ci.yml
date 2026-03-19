@@ -31,3 +31,6 @@ jobs:
 
       - name: Build project
         run: npm run build
+
+      - name: Build docs
+        run: npm run demo:build

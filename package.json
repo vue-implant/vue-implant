@@ -36,8 +36,9 @@
     }
   },
   "scripts": {
-    "dev": "vite",
     "build": "vite build",
+    "demo:dev": "vite --config vite.demo.config.ts",
+    "demo:build": "vite build --config vite.demo.config.ts",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "lint:fix-unsafe": "biome check --write --unsafe .",

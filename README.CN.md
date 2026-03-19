@@ -24,7 +24,7 @@
 
 ## 演示 🎬
 
-暂未提供公开演示站点，可先运行仓库内 `demo/` 进行本地体验。
+暂未提供公开演示站点，可先运行仓库内 `demo/` 进行本地体验，或构建到 `docs/` 作为 GitHub Pages 静态站点。
 
 ## 安装 📦
 
@@ -88,8 +88,8 @@ type InjectionConfig = {
 
 启动注入流程，处理已注册任务。
 
-> [!WARNING]
-> 必须在 `run()` 前完成 `register` / `registerListener` 等注册操作；`run()` 之后新增注册会被忽略并给出警告。
+> [!NOTE]
+> `run()` 具备幂等性，可重复调用。重复调用只会激活未处于 active/pending 的任务。
 
 ### `Injector.register(injectAt: string, component: Component, option?: ComponentOptions): RegisterResult`
 
@@ -125,8 +125,8 @@ type InjectionConfig = {
 > [!NOTE]
 > 重复注册同一组件到同一位置时不会抛错，会报警告并返回第一次注册结果。
 
-> [!WARNING]
-> 在 `run()` 后调用时，`isSuccess` 为 `false`，且 `keepAlive` / `stopAlive` 为空函数。
+> [!NOTE]
+> 支持在 `run()` 后继续 `register()`，新增任务会在下一次 `run()` 时激活。
 
 ### `Injector.registerListener(listenAt: string, event: string, callback: EventListener, activitySignal?: () => Ref<boolean>): ListenerRegisterResult`
 
@@ -144,13 +144,13 @@ type InjectionConfig = {
 | Property | Type | Description |
 | --- | --- | --- |
 | `taskId` | `string` | 监听任务唯一标识。 |
-| `isSuccess` | `boolean` | 注册是否成功（被忽略时为 `false`）。 |
+| `isSuccess` | `boolean` | 注册是否成功。 |
 
 > [!NOTE]
 > 重复注册同一个 `listenAt + event` 不会抛错，会报警告并返回相同 `taskId`。
 
-> [!WARNING]
-> 在 `run()` 之后调用时，注册会被忽略，并返回 `isSuccess = false`。
+> [!NOTE]
+> 支持在 `run()` 后继续 `registerListener()`，新增监听任务会在下一次 `run()` 时激活。
 
 ### `Injector.keepAlive(taskId: string): void`
 
@@ -265,7 +265,7 @@ injector.destroyedAll();
 - 统一调用一次上下文级别全量重置，清理每个任务的运行时字段。
 - 保留任务注册与任务 ID，不做销毁。
 
-### `Injector.bindActivitySignal(taskId: string, source: WatchSource<boolean>): void`
+### `Injector.bindActivitySignal(taskId: string, source: WatchSource<boolean>): boolean`
 
 将外部响应式信号绑定到任务事件开关：`true` 时开启监听，`false` 时关闭监听。
 
@@ -296,7 +296,7 @@ injector.bindActivitySignal(taskId, enabled);
 injector.run();
 ```
 
-### `Injector.listenerActivity(taskId: string, event: ActionEvent): void`
+### `Injector.listenerActivity(taskId: string, event: ActionEvent): boolean`
 
 手动控制注册的外部事件监听器开关：`Action.OPEN` 开启，`Action.CLOSE` 关闭。
 
@@ -333,9 +333,9 @@ injector.listenerActivity(taskId, Action.CLOSE);
 
 ## 常见问题（FAQ）❓
 
-### 1) 为什么 `run()` 后再 `register` / `registerListener` 不生效？
+### 1) `run()` 之后还能继续 `register` / `registerListener` 吗？
 
-这是设计行为：`run()` 会启动并锁定本轮任务调度。运行后新增注册会被忽略，并返回 `isSuccess = false`（或给出对应警告）。不过这问题会在后面的版本专门出一个API来在`run()`后进行注册，或者是会大改`run()`这个方法。
+可以。`run()` 之后依然可以继续注册，新增任务会在下一次 `run()` 时激活；已处于 active/pending 的任务会被跳过。
 
 ### 2) `registerListener` 重复注册会抛错吗？
 
@@ -367,6 +367,12 @@ cd vue-implant
 git switch -c feat/your-feature-name
 npm install 
 npm run build
+```
+
+**运行 demo：**
+
+```bash
+npm run demo:dev
 ```
 
 **测试：**

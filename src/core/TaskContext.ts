@@ -93,9 +93,16 @@ export class TaskContext {
 		this.pinia = piniaInstance;
 	}
 
-	public isTaskActive(id: string): boolean | null {
+	public getTaskStatus(id: string): 'idle' | 'pending' | 'active' | undefined {
 		const task: Task | undefined = this.contextMap.get(id);
-		return task ? task.isActive : null;
+		return task ? task.taskStatus : undefined;
+	}
+
+	public setTaskStatus(id: string, status: 'idle' | 'pending' | 'active'): void {
+		const task: Task | undefined = this.contextMap.get(id);
+		if (task) {
+			task.taskStatus = status;
+		}
 	}
 
 	/**
@@ -111,6 +118,7 @@ export class TaskContext {
 			console.warn(`[vue-injector] Task "${id}" not found, may already be destroyed`);
 			return;
 		}
+		context.taskStatus = 'idle';
 
 		// Remove the corresponding task record from the injection point list
 		this.taskRecords = this.taskRecords.filter((record) => record.taskId !== id);
@@ -273,7 +281,7 @@ export class TaskContext {
 			context.app.unmount();
 		}
 
-		context.isActive = false;
+		context.taskStatus = 'idle';
 
 		// reset context of id to initial state
 		// but keep the record in contextMap for future reuse

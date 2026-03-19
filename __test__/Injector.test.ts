@@ -1,6 +1,6 @@
 ﻿/// <reference types="vitest/config" />
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { nextTick, ref, WatchHandle } from 'vue';
+import { nextTick, ref, type WatchHandle } from 'vue';
 import { DOMWatcher } from '../src/core/DomWatcher';
 import { Injector } from '../src/core/Injector';
 import type { TaskContext } from '../src/core/TaskContext';
@@ -13,7 +13,7 @@ describe('Injector', () => {
 		injector = new Injector();
 		taskContext = injector.getTaskContext() as TaskContext;
 		document.body.innerHTML = '';
-		vi.spyOn(console, 'log').mockImplementation(() => { });
+		vi.spyOn(console, 'log').mockImplementation(() => {});
 	});
 
 	afterEach(() => {
@@ -38,7 +38,7 @@ describe('Injector', () => {
 
 		it('should apply custom timeout — warn appears earlier with shorter timeout', () => {
 			vi.useFakeTimers();
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 			const fast = new Injector({ timeout: 100 });
 			fast.register('#nonexistent', { name: 'T' });
@@ -52,7 +52,7 @@ describe('Injector', () => {
 
 		it('should apply custom timeout — default 5000ms does not warn before that', () => {
 			vi.useFakeTimers();
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 			injector.register('#nonexistent', { name: 'T' });
 			injector.run();
@@ -86,7 +86,7 @@ describe('Injector', () => {
 		});
 
 		it('should generate a unique id for anonymous function component', () => {
-			const comp = [() => { }][0];
+			const comp = [() => {}][0];
 			const result = injector.register('#app', comp);
 			expect(result.taskId).toMatch(/^component-[0-9a-f]+@#app$/);
 		});
@@ -109,7 +109,7 @@ describe('Injector', () => {
 		});
 
 		it('should warn and return same id on duplicate registration', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			const comp = { name: 'Dup' };
 
 			const first = injector.register('#app', comp);
@@ -133,7 +133,7 @@ describe('Injector', () => {
 
 		it('duplicate registration should not cause run() to observe twice for the same id', () => {
 			vi.useFakeTimers();
-			vi.spyOn(console, 'warn').mockImplementation(() => { });
+			vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 			injector.register('#target', { name: 'D' });
 			injector.register('#target', { name: 'D' }); // duplicate
@@ -160,20 +160,23 @@ describe('Injector', () => {
 			expect(r2.taskId).toBe('B@#b');
 		});
 
-		it('should warn and skip register() after run() has started', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
-			injector.register('#boot', { name: 'BootComp' });
+		it('should skip activity Task and inject not active Task register() after run() has started', () => {
+			const taskContext = injector.getTaskContext();
+			const div = document.createElement('div');
+			div.id = 'late';
+			document.body.appendChild(div);
+
+			injector.register('#late', { name: 'LateComp' });
 			injector.run();
-			const beforeCount = taskContext.taskRecords.length;
 
-			const result = injector.register('#late', { name: 'LateComp' });
+			injector.register('#late', { name: 'LateComp2' });
+			injector.run();
 
-			expect(warnSpy).toHaveBeenCalledWith(
-				expect.stringContaining('register() for "LateComp@#late" is ignored')
-			);
-			expect(result.taskId).toBe('LateComp@#late');
-			expect(taskContext.get(result.taskId)).toBeUndefined();
-			expect(taskContext.taskRecords.length).toBe(beforeCount);
+			const lateComp = taskContext?.getTaskStatus('LateComp@#late');
+			const lateComp2 = taskContext?.getTaskStatus('LateComp2@#late');
+
+			expect(lateComp).toBe('active');
+			expect(lateComp2).toBe('active');
 		});
 
 		it('should allow same component at different selectors', () => {
@@ -187,7 +190,7 @@ describe('Injector', () => {
 
 		it('destroyed() should not warn about missing task (proves context exists)', () => {
 			const { taskId: id } = injector.register('#app', { name: 'Del' });
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			injector.destroyed(id);
 
 			expect(warnSpy).not.toHaveBeenCalledWith(
@@ -196,13 +199,13 @@ describe('Injector', () => {
 		});
 
 		it('returned keepAlive() should not throw for a component task', () => {
-			vi.spyOn(console, 'warn').mockImplementation(() => { });
+			vi.spyOn(console, 'warn').mockImplementation(() => {});
 			const { keepAlive } = injector.register('#app', { name: 'KA' });
 			expect(() => keepAlive()).not.toThrow();
 		});
 
 		it('returned stopAlive() should warn when alive was not started', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			const { stopAlive } = injector.register('#app', { name: 'SA' });
 			stopAlive();
 			expect(warnSpy).toHaveBeenCalledWith(
@@ -231,7 +234,7 @@ describe('Injector', () => {
 		});
 
 		it('should not have event binding when no on option is provided', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			const { taskId: id } = injector.register('#app', { name: 'NoEvt' });
 
 			injector.listenerActivity(id, Action.OPEN);
@@ -255,8 +258,8 @@ describe('Injector', () => {
 		});
 		it('should warn if registering a listener on an element that does not exist', () => {
 			vi.useFakeTimers();
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
-			injector.registerListener('#nonexistent', 'click', () => { });
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			injector.registerListener('#nonexistent', 'click', () => {});
 			injector.run();
 			vi.advanceTimersByTime(5005);
 			expect(warnSpy).toHaveBeenCalledWith(
@@ -264,7 +267,7 @@ describe('Injector', () => {
 			);
 		});
 		it('should set up listener of context task that not component info correctly', () => {
-			injector.registerListener('#btn', 'click', () => { });
+			injector.registerListener('#btn', 'click', () => {});
 			const task = taskContext.get('listener-#btn-click');
 			expect(task?.component).toBeUndefined();
 			expect(task?.componentInjectAt).toBeUndefined();
@@ -274,15 +277,13 @@ describe('Injector', () => {
 			expect(task?.callback).toBeInstanceOf(Function);
 		});
 		it('should warn and return same id on duplicate listener registration', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
-			const first = injector.registerListener('#btn', 'click', () => { });
-			const second = injector.registerListener('#btn', 'click', () => { });
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const first = injector.registerListener('#btn', 'click', () => {});
+			const second = injector.registerListener('#btn', 'click', () => {});
 
 			expect(second.taskId).toBe(first.taskId);
 			expect(second.isSuccess).toBe(true);
-			expect(warnSpy).toHaveBeenCalledWith(
-				expect.stringContaining('already registered')
-			);
+			expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('already registered'));
 		});
 		it('should set up activitySignal for the listener correctly', async () => {
 			const mockRef = ref<boolean>(false);
@@ -305,23 +306,26 @@ describe('Injector', () => {
 			expect(cb).toHaveBeenCalledOnce();
 		});
 
-		it('should warn and skip registerListener() after run() has started', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+		it('should allow registerListener() after run() and activate on next run', () => {
+			const boot = document.createElement('div');
+			boot.id = 'boot2';
+			document.body.appendChild(boot);
+
+			const lateBtn = document.createElement('button');
+			lateBtn.id = 'late-btn';
+			document.body.appendChild(lateBtn);
+
 			injector.register('#boot2', { name: 'BootComp2' });
 			injector.run();
-			const beforeCount = taskContext.taskRecords.length;
 
-			const result = injector.registerListener('#late-btn', 'click', vi.fn());
-
-			expect(warnSpy).toHaveBeenCalledWith(
-				expect.stringContaining(
-					'registerListener() for "listener-#late-btn-click" is ignored'
-				)
-			);
+			const cb = vi.fn();
+			const result = injector.registerListener('#late-btn', 'click', cb);
 			expect(result.taskId).toBe('listener-#late-btn-click');
-			expect(result.isSuccess).toBe(false);
-			expect(taskContext.get(result.taskId)).toBeUndefined();
-			expect(taskContext.taskRecords.length).toBe(beforeCount);
+			expect(result.isSuccess).toBe(true);
+
+			injector.run();
+			lateBtn.click();
+			expect(cb).toHaveBeenCalledOnce();
 		});
 	});
 	describe('run', () => {
@@ -329,29 +333,43 @@ describe('Injector', () => {
 			injector.register('#app', { name: 'RunTest' });
 			expect(() => injector.run()).not.toThrow();
 		});
+		it('should not double inject when double call run()', () => {
+			const testInjector = new Injector({
+				timeout: 10000
+			});
+			const onDomReadyspy = vi
+				.spyOn(DOMWatcher.prototype, 'onDomReady')
+				.mockReturnValue(() => {});
+			testInjector.register('#app', { name: 'RunTest' });
+			testInjector.run();
+			testInjector.run();
+			expect(onDomReadyspy).toHaveBeenCalledOnce();
+		});
 		it('should call run() will throw error if have not task in injector', () => {
 			expect(() => injector.run()).toThrow('No registered tasks found');
 		});
-		it('should warn if run() is called multiple times', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+		it('should allow run() to be called multiple times without throwing', () => {
 			injector.register('#app', { name: 'RunMulti' });
-			injector.run();
-			injector.run();
-			expect(warnSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Injector is already running')
-			);
+			expect(() => {
+				injector.run();
+				injector.run();
+			}).not.toThrow();
 		});
 
-		it('should set runningFlag to true after run()', () => {
-			injector.register('#app', { name: 'FlagCheck' });
+		it('should mark task active after run() when target exists', () => {
+			const host = document.createElement('div');
+			host.id = 'app';
+			document.body.appendChild(host);
+
+			const { taskId } = injector.register('#app', { name: 'FlagCheck' });
 			injector.run();
-			expect(taskContext.getRunningFlag()).toBe(true);
+			expect(taskContext.getTaskStatus(taskId)).toBe('active');
 		});
 
 		it('should call domWatcher.onDomReady once for a single injectPoint with correct args', () => {
 			const onDomReadySpy = vi
 				.spyOn(DOMWatcher.prototype, 'onDomReady')
-				.mockReturnValue(() => { });
+				.mockReturnValue(() => {});
 
 			injector.register('#root', { name: 'Single' });
 			injector.run();
@@ -366,7 +384,7 @@ describe('Injector', () => {
 		it('should call domWatcher.onDomReady once per injectPoint for multiple registrations', () => {
 			const onDomReadySpy = vi
 				.spyOn(DOMWatcher.prototype, 'onDomReady')
-				.mockReturnValue(() => { });
+				.mockReturnValue(() => {});
 
 			injector.register('#header', { name: 'CompA' });
 			injector.register('#footer', { name: 'CompB' });
@@ -400,7 +418,7 @@ describe('Injector', () => {
 		it('should pass the custom timeout from InjectionConfig to onDomReady', () => {
 			const onDomReadySpy = vi
 				.spyOn(DOMWatcher.prototype, 'onDomReady')
-				.mockReturnValue(() => { });
+				.mockReturnValue(() => {});
 
 			const customInjector = new Injector({ timeout: 8000 });
 			customInjector.register('#app', { name: 'TimeoutComp' });
@@ -416,7 +434,7 @@ describe('Injector', () => {
 		it('should always pass once: true to onDomReady regardless of injectConfig', () => {
 			const onDomReadySpy = vi
 				.spyOn(DOMWatcher.prototype, 'onDomReady')
-				.mockReturnValue(() => { });
+				.mockReturnValue(() => {});
 
 			injector.register('#target', { name: 'OnceCheck' });
 			injector.run();
@@ -429,7 +447,7 @@ describe('Injector', () => {
 		it('should pass the injectAt selector of each injectPoint as the first arg to onDomReady', () => {
 			const onDomReadySpy = vi
 				.spyOn(DOMWatcher.prototype, 'onDomReady')
-				.mockReturnValue(() => { });
+				.mockReturnValue(() => {});
 
 			const selectors = ['#one', '.two', '[data-three]'];
 			for (const sel of selectors) {
@@ -441,20 +459,18 @@ describe('Injector', () => {
 			expect(calledSelectors).toEqual(selectors);
 		});
 
-		it('should not call domWatcher.onDomReady when run() is called a second time', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
-			const onDomReadySpy = vi
-				.spyOn(DOMWatcher.prototype, 'onDomReady')
-				.mockReturnValue(() => { });
+		it('should not call domWatcher.onDomReady again when task is already active', () => {
+			const host = document.createElement('div');
+			host.id = 'app';
+			document.body.appendChild(host);
+
+			const onDomReadySpy = vi.spyOn(DOMWatcher.prototype, 'onDomReady');
 
 			injector.register('#app', { name: 'NoDupRun' });
 			injector.run();
-			injector.run(); // second call — should be ignored
+			injector.run();
 
 			expect(onDomReadySpy).toHaveBeenCalledOnce();
-			expect(warnSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Injector is already running')
-			);
 		});
 	});
 
@@ -481,9 +497,7 @@ describe('Injector', () => {
 			btn.id = 'btn-signal';
 			document.body.appendChild(btn);
 
-			const bindSignalSpy = vi
-				.spyOn(injector, 'bindActivitySignal')
-				.mockImplementation(() => { });
+			const bindSignalSpy = vi.spyOn(injector, 'bindActivitySignal');
 			const listenerSpy = vi.spyOn(injector, 'listenerActivity');
 			const signal = ref(true);
 
@@ -565,9 +579,13 @@ describe('Injector', () => {
 			document.body.appendChild(btn);
 
 			const addSpy = vi.spyOn(btn, 'addEventListener');
-			const { taskId: id } = injector.register('#app', { name: 'OpenBind' }, {
-				on: { listenAt: '#open-bind', type: 'click', callback: vi.fn() }
-			});
+			const { taskId: id } = injector.register(
+				'#app',
+				{ name: 'OpenBind' },
+				{
+					on: { listenAt: '#open-bind', type: 'click', callback: vi.fn() }
+				}
+			);
 
 			injector.listenerActivity(id, Action.OPEN);
 
@@ -581,9 +599,13 @@ describe('Injector', () => {
 			document.body.appendChild(btn);
 
 			const addSpy = vi.spyOn(btn, 'addEventListener');
-			const { taskId: id } = injector.register('#app', { name: 'OpenRepeat' }, {
-				on: { listenAt: '#open-repeat', type: 'click', callback: vi.fn() }
-			});
+			const { taskId: id } = injector.register(
+				'#app',
+				{ name: 'OpenRepeat' },
+				{
+					on: { listenAt: '#open-repeat', type: 'click', callback: vi.fn() }
+				}
+			);
 
 			injector.listenerActivity(id, Action.OPEN);
 			injector.listenerActivity(id, Action.OPEN);
@@ -592,9 +614,13 @@ describe('Injector', () => {
 		});
 
 		it('Action.CLOSE should call controller.abort and clear controller', () => {
-			const { taskId: id } = injector.register('#app', { name: 'CloseAction' }, {
-				on: { listenAt: '#close-target', type: 'click', callback: vi.fn() }
-			});
+			const { taskId: id } = injector.register(
+				'#app',
+				{ name: 'CloseAction' },
+				{
+					on: { listenAt: '#close-target', type: 'click', callback: vi.fn() }
+				}
+			);
 			const controller = new AbortController();
 			const abortSpy = vi.spyOn(controller, 'abort');
 			const context = taskContext.get(id);
@@ -608,7 +634,7 @@ describe('Injector', () => {
 		});
 
 		it('should warn for task without event configuration', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			const { taskId: id } = injector.register('#app', { name: 'NoEventConfig' });
 
 			injector.listenerActivity(id, Action.OPEN);
@@ -619,10 +645,14 @@ describe('Injector', () => {
 		});
 
 		it('should warn for unknown action type', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
-			const { taskId: id } = injector.register('#app', { name: 'UnknownAction' }, {
-				on: { listenAt: '#ua', type: 'click', callback: vi.fn() }
-			});
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const { taskId: id } = injector.register(
+				'#app',
+				{ name: 'UnknownAction' },
+				{
+					on: { listenAt: '#ua', type: 'click', callback: vi.fn() }
+				}
+			);
 
 			injector.listenerActivity(id, 'UNKNOWN' as Action);
 
@@ -636,9 +666,13 @@ describe('Injector', () => {
 		it('should trigger OPEN when signal becomes true and CLOSE when false', async () => {
 			const signal = ref(false);
 			const spy = vi.spyOn(injector, 'listenerActivity');
-			const { taskId: id } = injector.register('#app', { name: 'SignalFlow' }, {
-				on: { listenAt: '#sig', type: 'click', callback: vi.fn() }
-			});
+			const { taskId: id } = injector.register(
+				'#app',
+				{ name: 'SignalFlow' },
+				{
+					on: { listenAt: '#sig', type: 'click', callback: vi.fn() }
+				}
+			);
 
 			injector.bindActivitySignal(id, signal);
 
@@ -654,9 +688,13 @@ describe('Injector', () => {
 
 		it('should stop old watcher before creating new watcher', () => {
 			const signal = ref(false);
-			const { taskId: id } = injector.register('#app', { name: 'RebindSignal' }, {
-				on: { listenAt: '#sig2', type: 'click', callback: vi.fn() }
-			});
+			const { taskId: id } = injector.register(
+				'#app',
+				{ name: 'RebindSignal' },
+				{
+					on: { listenAt: '#sig2', type: 'click', callback: vi.fn() }
+				}
+			);
 
 			const oldWatcher = vi.fn();
 			const context = taskContext.get(id);
@@ -672,9 +710,13 @@ describe('Injector', () => {
 		it('should run immediately once when binding (immediate: true)', () => {
 			const signal = ref(true);
 			const spy = vi.spyOn(injector, 'listenerActivity');
-			const { taskId: id } = injector.register('#app', { name: 'ImmediateSignal' }, {
-				on: { listenAt: '#sig3', type: 'click', callback: vi.fn() }
-			});
+			const { taskId: id } = injector.register(
+				'#app',
+				{ name: 'ImmediateSignal' },
+				{
+					on: { listenAt: '#sig3', type: 'click', callback: vi.fn() }
+				}
+			);
 
 			injector.bindActivitySignal(id, signal);
 
@@ -701,10 +743,10 @@ describe('Injector', () => {
 			const detached = document.createElement('div');
 			detached.id = 'detached-host';
 
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			vi.spyOn(DOMWatcher.prototype, 'onDomReady').mockImplementation((_, cb) => {
 				cb(detached);
-				return () => { };
+				return () => {};
 			});
 
 			const { taskId: id } = injector.register('#detached-host', { name: 'DetachedComp' });
@@ -716,16 +758,15 @@ describe('Injector', () => {
 			);
 		});
 
-		it('should skip second mount attempt when task is already mounted', () => {
+		it('should ignore second ready callback when task is already active', () => {
 			const host = document.createElement('div');
 			host.id = 'already-mounted';
 			document.body.appendChild(host);
 
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 			let cbRef: ((el: HTMLElement) => void) | undefined;
 			vi.spyOn(DOMWatcher.prototype, 'onDomReady').mockImplementation((_, cb) => {
 				cbRef = cb;
-				return () => { };
+				return () => {};
 			});
 
 			injector.register('#already-mounted', {
@@ -736,11 +777,10 @@ describe('Injector', () => {
 
 			if (!cbRef) throw new Error('onDomReady callback should be captured');
 			cbRef(host);
+			const firstChildCount = host.childElementCount;
 			cbRef(host);
 
-			expect(warnSpy).toHaveBeenCalledWith(
-				expect.stringContaining('already mounted, skipping')
-			);
+			expect(host.childElementCount).toBe(firstChildCount);
 		});
 
 		it('alive=true should start onDomAlive observer after successful injection', async () => {
@@ -750,7 +790,7 @@ describe('Injector', () => {
 
 			const onDomAliveSpy = vi
 				.spyOn(DOMWatcher.prototype, 'onDomAlive')
-				.mockReturnValue(() => { });
+				.mockReturnValue(() => {});
 
 			injector.register('#alive-inject', { name: 'AliveInject' }, { alive: true });
 			injector.run();
@@ -764,7 +804,7 @@ describe('Injector', () => {
 			host.id = 'mount-error';
 			document.body.appendChild(host);
 
-			const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 			const { taskId: id } = injector.register('#mount-error', {
 				name: 'MountErrorComp',
@@ -785,7 +825,11 @@ describe('Injector', () => {
 
 	describe('destroyed / destroyedAll', () => {
 		it('destroyed should stop alive task first, then call taskContext.destroy', () => {
-			const { taskId: id } = injector.register('#app', { name: 'DestroyOne' }, { alive: true });
+			const { taskId: id } = injector.register(
+				'#app',
+				{ name: 'DestroyOne' },
+				{ alive: true }
+			);
 			const context = taskContext.get(id);
 			if (!context) throw new Error('Task context not found');
 			context.alive = true;
@@ -849,8 +893,16 @@ describe('Injector', () => {
 		});
 
 		it('resetedAll should stop alive tasks and call taskContext.resetAll once', () => {
-			const aliveA = injector.register('#ra', { name: 'ResetAliveA' }, { alive: true }).taskId;
-			const aliveB = injector.register('#rb', { name: 'ResetAliveB' }, { alive: true }).taskId;
+			const aliveA = injector.register(
+				'#ra',
+				{ name: 'ResetAliveA' },
+				{ alive: true }
+			).taskId;
+			const aliveB = injector.register(
+				'#rb',
+				{ name: 'ResetAliveB' },
+				{ alive: true }
+			).taskId;
 			const normal = injector.register('#rc', { name: 'ResetNormalC' }).taskId;
 
 			const a = taskContext.get(aliveA);
@@ -893,15 +945,15 @@ describe('Injector', () => {
 	describe('keepAlive/stopAlive', () => {
 		describe('keepAlive', () => {
 			it('should warn and return early when called on a pure listener task (no component)', () => {
-				const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
-				const { taskId: id } = injector.registerListener('#app', 'click', () => { });
+				const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+				const { taskId: id } = injector.registerListener('#app', 'click', () => {});
 				injector.keepAlive(id);
 				expect(warnSpy).toHaveBeenCalledWith(
 					expect.stringContaining('keepAlive is not applicable to non-component task')
 				);
 			});
 			it('should warn and skip when an alive observer is already active (alive=true && isObserver=true)', () => {
-				const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+				const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 				const { taskId: id } = injector.register('#app', { name: 'NoDupRun' });
 				injector.keepAlive(id);
 				injector.keepAlive(id);
@@ -926,7 +978,7 @@ describe('Injector', () => {
 
 					const onDomAliveSpy = vi
 						.spyOn(DOMWatcher.prototype, 'onDomAlive')
-						.mockReturnValue(() => { });
+						.mockReturnValue(() => {});
 					const testInjector = new Injector({ alive: true });
 					testInjector.register('#app', { name: 'NoDupRun' }, { alive: true });
 					testInjector.run();
@@ -941,7 +993,7 @@ describe('Injector', () => {
 
 					const onDomAliveSpy = vi
 						.spyOn(DOMWatcher.prototype, 'onDomAlive')
-						.mockReturnValue(() => { });
+						.mockReturnValue(() => {});
 					const testInjector = new Injector({ alive: true });
 					testInjector.register('#app', { name: 'NoDupRun' });
 					testInjector.run();
@@ -962,7 +1014,7 @@ describe('Injector', () => {
 
 					const onDomAliveSpy = vi
 						.spyOn(DOMWatcher.prototype, 'onDomAlive')
-						.mockReturnValue(() => { });
+						.mockReturnValue(() => {});
 					const testInjector = new Injector({ alive: true });
 					testInjector.register(
 						'#app',
@@ -986,7 +1038,7 @@ describe('Injector', () => {
 
 					const onDomAliveSpy = vi
 						.spyOn(DOMWatcher.prototype, 'onDomAlive')
-						.mockReturnValue(() => { });
+						.mockReturnValue(() => {});
 
 					const testInjector = new Injector({ alive: true });
 					testInjector.register(
@@ -1121,7 +1173,7 @@ describe('Injector', () => {
 					div.id = 'app';
 					document.body.appendChild(div);
 
-					const stopHandler = () => { };
+					const stopHandler = () => {};
 
 					const onDomReadySpy = vi
 						.spyOn(DOMWatcher.prototype, 'onDomReady')
@@ -1132,7 +1184,7 @@ describe('Injector', () => {
 							return stopHandler;
 						});
 
-					const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+					const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 					const handleInjectionReadySpy = vi.spyOn(
 						injector as unknown as {
@@ -1159,7 +1211,7 @@ describe('Injector', () => {
 				div.id = 'app';
 				document.body.appendChild(div);
 
-				const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+				const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 				const { stopAlive } = injector.register('#app', { name: 'App' }, { alive: false });
 				stopAlive();
