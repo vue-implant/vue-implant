@@ -240,6 +240,31 @@ injector.run();
 injector.destroyedAll();
 ```
 
+### `Injector.reseted(taskId: string): void`
+
+将指定任务重置为可复用的初始运行时状态，同时保留任务注册信息。
+
+参数说明：
+
+- `taskId`：要重置的任务 ID。
+
+行为说明：
+
+- 若任务处于 alive 模式，会先停止 alive 观察器。
+- 卸载已挂载的组件实例并移除注入根节点。
+- 中止监听器并停止 watcher。
+- 任务在上下文中仍保留，可用于后续复用。
+
+### `Injector.resetedAll(): void`
+
+将当前已注册的全部任务重置为可复用的初始运行时状态。
+
+行为说明：
+
+- 先停止所有 alive 任务的观察器。
+- 统一调用一次上下文级别全量重置，清理每个任务的运行时字段。
+- 保留任务注册与任务 ID，不做销毁。
+
 ### `Injector.bindActivitySignal(taskId: string, source: WatchSource<boolean>): void`
 
 将外部响应式信号绑定到任务事件开关：`true` 时开启监听，`false` 时关闭监听。

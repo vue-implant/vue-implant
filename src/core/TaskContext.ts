@@ -32,11 +32,6 @@ export class TaskContext {
 	private pinia: Plugin | null = null;
 
 	/**
-	 * Indicates whether the injector runtime is currently active.
-	 */
-	private isRunning: boolean = false;
-
-	/**
 	 * Registers or replaces a task context by id.
 	 *
 	 * @param key Unique task id.
@@ -76,24 +71,6 @@ export class TaskContext {
 	}
 
 	/**
-	 * Reads the runtime running flag.
-	 *
-	 * @returns Current running state.
-	 */
-	public getRunningFlag(): boolean {
-		return this.isRunning;
-	}
-
-	/**
-	 * Updates the runtime running flag.
-	 *
-	 * @param flag New running state.
-	 */
-	public setRunningFlag(flag: boolean): void {
-		this.isRunning = flag;
-	}
-
-	/**
 	 * Gets the stored Pinia instance.
 	 *
 	 * @returns Pinia plugin instance or `null` when unset.
@@ -115,6 +92,12 @@ export class TaskContext {
 		}
 		this.pinia = piniaInstance;
 	}
+
+	public isTaskActive(id: string): boolean | null {
+		const task: Task | undefined = this.contextMap.get(id);
+		return task ? task.isActive : null;
+	}
+
 	/**
 	 * Destroys all resources of a single task.
 	 *
@@ -146,6 +129,7 @@ export class TaskContext {
 			this.releaseComponentInstance(id);
 			this.releaseDomElement(id);
 		}
+
 		// Finally delete the task context
 		this.contextMap.delete(id);
 	}
@@ -175,7 +159,7 @@ export class TaskContext {
 		this.contextMap.clear();
 		this.taskRecords = [];
 		this.taskErrorMessages = [];
-		this.isRunning = false;
+
 		this.pinia = null;
 
 		console.log('[vue-injector] All tasks destroyed');
@@ -289,6 +273,8 @@ export class TaskContext {
 			context.app.unmount();
 		}
 
+		context.isActive = false;
+
 		// reset context of id to initial state
 		// but keep the record in contextMap for future reuse
 		context.app = undefined;
@@ -309,6 +295,12 @@ export class TaskContext {
 		if (context.controller) {
 			context.controller.abort();
 			context.controller = undefined;
+		}
+	}
+
+	public resetAll(): void {
+		for (const id of this.contextMap.keys()) {
+			this.resetState(id);
 		}
 	}
 }

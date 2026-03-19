@@ -829,6 +829,51 @@ describe('Injector', () => {
 		});
 	});
 
+	describe('reseted / resetedAll', () => {
+		it('reseted should stop alive task first, then call taskContext.resetState', () => {
+			const { taskId: id } = injector.register('#app', { name: 'ResetOne' }, { alive: true });
+			const context = taskContext.get(id);
+			if (!context) throw new Error('Task context not found');
+			context.alive = true;
+
+			const stopAliveSpy = vi.spyOn(injector, 'stopAlive');
+			const resetStateSpy = vi.spyOn(taskContext, 'resetState');
+
+			injector.reseted(id);
+
+			expect(stopAliveSpy).toHaveBeenCalledWith(id);
+			expect(resetStateSpy).toHaveBeenCalledWith(id);
+			expect(stopAliveSpy.mock.invocationCallOrder[0]).toBeLessThan(
+				resetStateSpy.mock.invocationCallOrder[0]
+			);
+		});
+
+		it('resetedAll should stop alive tasks and call taskContext.resetAll once', () => {
+			const aliveA = injector.register('#ra', { name: 'ResetAliveA' }, { alive: true }).taskId;
+			const aliveB = injector.register('#rb', { name: 'ResetAliveB' }, { alive: true }).taskId;
+			const normal = injector.register('#rc', { name: 'ResetNormalC' }).taskId;
+
+			const a = taskContext.get(aliveA);
+			const b = taskContext.get(aliveB);
+			if (!a || !b) throw new Error('Alive contexts should exist');
+			a.alive = true;
+			b.alive = true;
+
+			const stopAliveSpy = vi.spyOn(injector, 'stopAlive');
+			const resetAllSpy = vi.spyOn(taskContext, 'resetAll');
+
+			injector.resetedAll();
+
+			expect(stopAliveSpy).toHaveBeenCalledWith(aliveA);
+			expect(stopAliveSpy).toHaveBeenCalledWith(aliveB);
+			expect(stopAliveSpy).not.toHaveBeenCalledWith(normal);
+			expect(resetAllSpy).toHaveBeenCalledOnce();
+			expect(taskContext.has(aliveA)).toBe(true);
+			expect(taskContext.has(aliveB)).toBe(true);
+			expect(taskContext.has(normal)).toBe(true);
+		});
+	});
+
 	describe('setPinia', () => {
 		it('should use provided pinia plugin for later injected component', () => {
 			const host = document.createElement('div');

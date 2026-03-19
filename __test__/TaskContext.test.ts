@@ -566,5 +566,58 @@ describe('TaskContext', () => {
 			} as Task);
 		});
 	});
+
+	describe('resetAll', () => {
+		it('should reset all task states and keep contexts in map', () => {
+			const unmountA = vi.fn();
+			const unmountB = vi.fn();
+			const removeA = vi.fn();
+			const removeB = vi.fn();
+			const abortA = vi.fn();
+			const abortB = vi.fn();
+			const watcherA = vi.fn() as unknown as WatchHandle;
+			const watcherB = vi.fn() as unknown as WatchHandle;
+
+			taskContext.set('a', {
+				taskId: 'a',
+				app: { unmount: unmountA } as unknown as App<Element>,
+				appRoot: { remove: removeA } as unknown as HTMLElement,
+				controller: { abort: abortA } as unknown as AbortController,
+				watcher: watcherA,
+				isObserver: true
+			});
+
+			taskContext.set('b', {
+				taskId: 'b',
+				app: { unmount: unmountB } as unknown as App<Element>,
+				appRoot: { remove: removeB } as unknown as HTMLElement,
+				controller: { abort: abortB } as unknown as AbortController,
+				watcher: watcherB,
+				isObserver: true
+			});
+
+			taskContext.resetAll();
+
+			expect(unmountA).toHaveBeenCalledOnce();
+			expect(unmountB).toHaveBeenCalledOnce();
+			expect(removeA).toHaveBeenCalledOnce();
+			expect(removeB).toHaveBeenCalledOnce();
+			expect(abortA).toHaveBeenCalledOnce();
+			expect(abortB).toHaveBeenCalledOnce();
+			expect(watcherA).toHaveBeenCalledOnce();
+			expect(watcherB).toHaveBeenCalledOnce();
+
+			expect(taskContext.has('a')).toBe(true);
+			expect(taskContext.has('b')).toBe(true);
+			expect(taskContext.get('a')?.app).toBeUndefined();
+			expect(taskContext.get('b')?.app).toBeUndefined();
+			expect(taskContext.get('a')?.isObserver).toBe(false);
+			expect(taskContext.get('b')?.isObserver).toBe(false);
+		});
+
+		it('should not throw when context map is empty', () => {
+			expect(() => taskContext.resetAll()).not.toThrow();
+		});
+	});
 });
 

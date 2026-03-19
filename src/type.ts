@@ -1,4 +1,5 @@
-﻿import type { App, Component, ComponentPublicInstance, Ref, WatchHandle, WatchSource } from 'vue';
+﻿import { isArrowFunction } from 'typescript';
+import type { App, Component, ComponentPublicInstance, Ref, WatchHandle, WatchSource } from 'vue';
 
 export enum Action {
 	OPEN = 'OPEN',
@@ -39,6 +40,7 @@ export type InjectCallback = (el: HTMLElement, observer?: MutationObserver) => v
 export type Task = {
 	// Unique task identifier
 	taskId: string;
+	isActive: boolean;
 
 	// Component injection info
 	app?: App<Element>;

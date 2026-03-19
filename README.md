@@ -242,6 +242,31 @@ injector.run();
 injector.destroyedAll();
 ```
 
+### `Injector.reseted(taskId: string): void`
+
+Resets a specific task to reusable initial runtime state while keeping registration metadata.
+
+Parameter description:
+
+- `taskId`: task ID to reset.
+
+Behavior summary:
+
+- Stops alive observer first when the task is in alive mode.
+- Unmounts mounted component instance and removes injected root element.
+- Aborts listener and stops watcher.
+- Keeps the task entry in context, so the task can be reused.
+
+### `Injector.resetedAll(): void`
+
+Resets all registered tasks to reusable initial runtime state.
+
+Behavior summary:
+
+- Stops alive observers for all alive tasks first.
+- Calls context-level full reset once to clean runtime fields of every task.
+- Keeps task registrations and task IDs in context.
+
 ### `Injector.bindActivitySignal(taskId: string, source: WatchSource<boolean>): void`
 
 Binds an external reactive signal to listener activation: listener opens when `true`, closes when `false`.
