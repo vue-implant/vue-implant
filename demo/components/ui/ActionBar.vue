@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref } from 'vue';
+
 defineOptions({ name: 'ActionBar' })
 
 const props = defineProps<{
@@ -10,15 +12,27 @@ const emit = defineEmits<{
     reset: []
     'update:activitySignal': [value: boolean]
 }>()
+
+
+const run=()=>{
+  emit('run');
+  isRunning.value = true;
+}
+
+const reset =()=>{
+  emit('reset');
+  isRunning.value = false;
+}
+const isRunning = ref(false)
 </script>
 
 <template>
     <section class="actions">
         <div class="btn-group">
-            <button class="btn btn-primary"  @click="emit('run')">
+            <button class="btn btn-primary" :disabled="isRunning" @click="run">
                 Run Injector
             </button>
-            <button class="btn btn-plain" @click="emit('reset')">
+            <button class="btn btn-plain" :disabled="!isRunning" @click="reset">
                 Reset Demo
             </button>
         </div>

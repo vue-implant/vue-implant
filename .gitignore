@@ -19,6 +19,7 @@ dist-ssr
 .vscode
 .zed
 .DS_Store
+.claude
 *.suo
 *.ntvs*
 *.njsproj

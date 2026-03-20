@@ -1,11 +1,22 @@
 <script setup lang="ts">
 defineOptions({ name: 'DelayedInjectionCase' })
 
-import { onMounted, ref } from 'vue'
+import { inject, onMounted, ref } from 'vue'
+import { RegisterResult } from '../../src/type'
 
-const hostVisible = ref(false)
-const delayAliveEnabled = ref(true)
+const hostVisible = ref(false);
+const delayAliveEnabled = ref(true);
+const result:RegisterResult = inject<RegisterResult>('delayCase:result') as RegisterResult;
 
+
+const triggerAlive = () => {
+    if (delayAliveEnabled.value) {
+        result.stopAlive()
+    } else {
+        result.keepAlive()
+    }
+    delayAliveEnabled.value = !delayAliveEnabled.value
+}
 
 function triggerDelay() {
     hostVisible.value = false
@@ -31,7 +42,7 @@ onMounted(() => {
                 <span class="icon">⚡</span>Reactivate Delay
             </button>
 
-            <button class="btn-secondary">
+            <button class="btn-secondary" @click="triggerAlive">
                 <span class="icon">🧬</span>Alive: {{ delayAliveEnabled ? 'On' : 'Off' }}
             </button>
         </div>

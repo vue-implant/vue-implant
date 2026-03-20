@@ -1,7 +1,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'DemoPage' })
 
-import { onMounted, onUnmounted, ref } from 'vue'
+import { inject, onMounted, onUnmounted, provide, ref } from 'vue'
 import { Injector } from '../src'
 import { InjectedBadge, InjectedCounter, InjectedTooltip } from './injectedWidgets'
 import HeroBlock from './components/layout/HeroBlock.vue'
@@ -14,6 +14,7 @@ import DelayedInjectionCase from './scenarios/DelayedInjectionCase.vue'
 import EventBindingCase from './scenarios/EventBindingCase.vue'
 import PureListenerCase from './scenarios/PureListenerCase.vue'
 import SignalListenerCase from './scenarios/SignalListenerCase.vue'
+import { RegisterResult } from '../src/type'
 
 const activitySignal = ref(true)
 const reinjectActive = ref(false)
@@ -26,10 +27,10 @@ injector.register('#case-basic-target', InjectedBadge, {
     alive: false,
 })
 
-injector.register('#case-delay-target', InjectedBadge, {
+
+const result = injector.register('#case-delay-target', InjectedBadge, {
     alive: true,
 })
-
 injector.register('#case-event-target', InjectedCounter, {
     on: {
         listenAt: '#case-event-button',
@@ -55,6 +56,8 @@ injector.register('#case-reinject-target', InjectedBadge, {
     alive: true,
     scope: 'local',
 })
+
+provide<RegisterResult>('delayCase:result', result);
 
 function isInjectorActive(): boolean {
     const taskContext = injector.getTaskContext()

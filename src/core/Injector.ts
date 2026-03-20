@@ -230,7 +230,14 @@ export class Injector {
 			return;
 		}
 
-		// Case 2: Component is not mounted (e.g., removed from DOM after stopAlive was called)
+		// Case 2: Component app exists but appRoot is disconnected from DOM
+		// This happens when stopAlive was called after the node was removed but before cleanup.
+		// We need to reset the state and re-trigger onDomReady for re-injection.
+		if (context.app && !context.appRoot?.isConnected) {
+			this.taskContext.resetState(taskId);
+		}
+
+		// Case 3: Component is not mounted (e.g., removed from DOM after stopAlive was called)
 		// Re-trigger onDomReady to wait for the target element and re-inject
 		if (!context.app) {
 			let cancelled = false;

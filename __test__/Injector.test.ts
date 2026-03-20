@@ -1133,7 +1133,72 @@ describe('Injector', () => {
 				});
 			});
 
-			describe('Case 2 — component not yet mounted (app is undefined)', () => {
+			describe('Case 2 — app exists but appRoot disconnected from DOM', () => {
+				it('should call resetState to clean up stale app when appRoot is disconnected, then fall through to re-inject', () => {
+					const div = document.createElement('div');
+					div.id = 'detach-test';
+					document.body.appendChild(div);
+
+					const { taskId: id } = injector.register(
+						'#detach-test',
+						{ name: 'DetachTest' },
+						{ alive: true }
+					);
+					injector.run();
+
+					const ctx = taskContext.get(id);
+					expect(ctx).toBeDefined();
+					expect(ctx?.app).toBeDefined(); // component was mounted by run()
+
+					div.remove();
+					expect(ctx?.appRoot?.isConnected).toBe(false);
+
+					injector.stopAlive(id);
+					expect(ctx?.alive).toBe(false);
+
+					const resetStateSpy = vi.spyOn(taskContext, 'resetState');
+					const onDomReadySpy = vi
+						.spyOn(DOMWatcher.prototype, 'onDomReady')
+						.mockReturnValue(() => {});
+
+					injector.keepAlive(id);
+
+					expect(resetStateSpy).toHaveBeenCalledWith(id);
+					expect(onDomReadySpy).toHaveBeenCalled();
+					expect(ctx?.alive).toBe(true);
+					expect(ctx?.isObserver).toBe(true);
+				});
+
+				it('should not call resetState when appRoot is still connected (Case 1 path)', async () => {
+					const div = document.createElement('div');
+					div.id = 'connected-test';
+					document.body.appendChild(div);
+
+					const { taskId: id } = injector.register(
+						'#connected-test',
+						{ name: 'ConnectedTest' },
+						{ alive: true }
+					);
+					injector.run();
+
+					const ctx = taskContext.get(id);
+					expect(ctx?.app).toBeDefined();
+					expect(ctx?.appRoot?.isConnected).toBe(true);
+
+					// stopAlive, then keepAlive while DOM is still connected
+					injector.stopAlive(id);
+
+					const resetStateSpy = vi.spyOn(taskContext, 'resetState');
+					injector.keepAlive(id);
+
+					await nextTick();
+
+					// Should NOT call resetState — goes through Case 1 (connected path) instead
+					expect(resetStateSpy).not.toHaveBeenCalled();
+				});
+			});
+
+			describe('Case 3 — component not yet mounted (app is undefined)', () => {
 				it('should call domWatcher.onDomReady to wait for the target element when app is undefined', () => {
 					const onDomReadySpy = vi.spyOn(DOMWatcher.prototype, 'onDomReady');
 					const { taskId: id } = injector.register('#app', { name: 'App' });
