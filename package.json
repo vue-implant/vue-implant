@@ -1,6 +1,6 @@
 {
   "name": "vue-implant",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "A Vue 3 component injection framework for userscripts and browser extension environments.",
   "type": "module",
   "license": "MIT",
