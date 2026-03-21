@@ -114,8 +114,8 @@ export class Injector {
 			return {
 				taskId: taskId,
 				isSuccess: true,
-				keepAlive: () => this.keepAlive(taskId),
-				stopAlive: () => this.stopAlive(taskId)
+				keepAlive: () => this.enableAlive(taskId),
+				stopAlive: () => this.disableAlive(taskId)
 			};
 		}
 		// Use unified Task to store all information
@@ -156,12 +156,12 @@ export class Injector {
 		return {
 			taskId: taskId,
 			isSuccess: true,
-			keepAlive: () => this.keepAlive(taskId),
-			stopAlive: () => this.stopAlive(taskId)
+			keepAlive: () => this.enableAlive(taskId),
+			stopAlive: () => this.disableAlive(taskId)
 		};
 	}
 
-	public keepAlive(taskId: string): void {
+	public enableAlive(taskId: string): void {
 		const context = this.taskContext.get(taskId);
 		if (!context) {
 			console.error(`[vue-injector] Task "${taskId}" not found`);
@@ -265,7 +265,7 @@ export class Injector {
 		}
 	}
 
-	public stopAlive(taskId: string): void {
+	public disableAlive(taskId: string): void {
 		const context = this.taskContext.get(taskId);
 
 		if (!context) {
@@ -287,7 +287,7 @@ export class Injector {
 		stopHandler?.();
 	}
 
-	public getTaskContext(): TaskContext | undefined {
+	public getContext(): TaskContext | undefined {
 		return this.taskContext;
 	}
 
@@ -295,10 +295,10 @@ export class Injector {
 		this.taskContext.setPinia(pinia);
 	}
 
-	public reseted(taskId: string): void {
+	public reset(taskId: string): void {
 		const context: Task | undefined = this.taskContext.get(taskId);
 		if (context?.alive) {
-			this.stopAlive(taskId);
+			this.disableAlive(taskId);
 		}
 		this.taskContext.resetState(taskId);
 	}
@@ -307,31 +307,31 @@ export class Injector {
 		for (const id of this.taskContext.keys()) {
 			const context: Task | undefined = this.taskContext.get(id);
 			if (context?.alive) {
-				this.stopAlive(id);
+				this.disableAlive(id);
 			}
 		}
 		this.taskContext.resetAll();
 	}
 
-	public destroyed(taskId: string): void {
+	public destroy(taskId: string): void {
 		const context: Task | undefined = this.taskContext.get(taskId);
 		if (context?.alive) {
-			this.stopAlive(taskId);
+			this.disableAlive(taskId);
 		}
 		this.taskContext.destroy(taskId);
 	}
 
-	public destroyedAll(): void {
+	public destroyAll(): void {
 		for (const id of this.taskContext.keys()) {
 			const context: Task | undefined = this.taskContext.get(id);
 			if (context?.alive) {
-				this.stopAlive(id);
+				this.disableAlive(id);
 			}
 		}
 		this.taskContext.destroyedAll();
 	}
 	// TODO: add config option to enable flush sync or pre
-	public bindActivitySignal(taskId: string, source: WatchSource<boolean>): boolean {
+	public bindListenerSignal(taskId: string, source: WatchSource<boolean>): boolean {
 		// Bind a reactive signal to control automatic listener attach/detach for this task
 		const context: Task | undefined = this.taskContext.get(taskId);
 		if (!context) {
@@ -352,7 +352,7 @@ export class Injector {
 			const unWatch: WatchHandle = watch(
 				source,
 				(newSignal) => {
-					this.listenerActivity(taskId, newSignal ? Action.OPEN : Action.CLOSE);
+					this.controlListener(taskId, newSignal ? Action.OPEN : Action.CLOSE);
 				},
 				{ immediate: true }
 			);
@@ -366,7 +366,7 @@ export class Injector {
 		}
 	}
 
-	public listenerActivity(taskId: string, event: ActionEvent): boolean {
+	public controlListener(taskId: string, event: ActionEvent): boolean {
 		const context: Task | undefined = this.taskContext.get(taskId);
 		if (!context) {
 			console.error(
@@ -451,9 +451,9 @@ export class Injector {
 		if (context.withEvent) {
 			let result: boolean | null = null;
 			if (context.activitySignal) {
-				result = this.bindActivitySignal(taskId, context.activitySignal());
+				result = this.bindListenerSignal(taskId, context.activitySignal());
 			} else {
-				result = this.listenerActivity(taskId, Action.OPEN);
+				result = this.controlListener(taskId, Action.OPEN);
 			}
 
 			if (result === false) {
