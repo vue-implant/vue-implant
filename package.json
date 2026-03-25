@@ -45,12 +45,14 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.4",
     "@types/node": "^25.3.0",
     "@vitejs/plugin-vue": "^6.0.2",
+    "@vitest/coverage-v8": "^4.0.18",
     "jsdom": "^28.1.0",
     "pinia": "^3.0.4",
     "typescript": "~5.9.3",

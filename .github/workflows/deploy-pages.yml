@@ -7,7 +7,6 @@ on:
     paths:
       - "demo/**"
       - "src/**"
-      - "docs/**"
       - "vite.demo.config.ts"
       - "package.json"
       - "package-lock.json"

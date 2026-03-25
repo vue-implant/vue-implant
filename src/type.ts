@@ -82,3 +82,8 @@ export type ListenerRegisterResult = {
 	taskId: string;
 	isSuccess: boolean;
 };
+
+export type _RegisterResult = {
+	taskId: string;
+	isSuccess: boolean;
+};
