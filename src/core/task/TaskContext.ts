@@ -4,8 +4,8 @@ import type { Task, TaskErrorMessage, TaskRecord } from '../../type';
 /**
  * Central runtime registry for all injection tasks.
  *
- * This context stores task instances, task records, and transient runtime state
- * (watchers, listeners, component roots, and Pinia instance). It also provides
+	 * This context stores task instances, task records, and transient runtime state
+	 * (watchers, listeners, component roots, and shared Vue plugins). It also provides
  * unified teardown utilities for single-task and full-context cleanup to avoid
  * memory leaks from unreleased DOM nodes, listeners, and reactive watchers.
  */
@@ -27,7 +27,12 @@ export class TaskContext {
 	private readonly contextMap: Map<string, Task> = new Map();
 
 	/**
-	 * Shared Pinia plugin instance used by injected apps.
+	 * Shared Vue plugins used by injected apps.
+	 */
+	private plugins: Plugin[] = [];
+
+	/**
+	 * Legacy Pinia alias kept for backward compatibility with `setPinia/getPinia`.
 	 */
 	private pinia: Plugin | undefined = undefined;
 
@@ -71,9 +76,44 @@ export class TaskContext {
 	}
 
 	/**
-	 * Gets the stored Pinia instance.
+	 * Gets the stored shared plugins.
 	 *
-	 * @returns Pinia plugin instance or `null` when unset.
+	 * @returns Registered plugins in install order.
+	 */
+	public getPlugins(): Plugin[] {
+		return [...this.plugins];
+	}
+
+	/**
+	 * Registers a shared Vue plugin used by injected apps.
+	 *
+	 * Duplicate plugin references are ignored to avoid repeated installation.
+	 *
+	 * @param plugin Vue plugin instance.
+	 */
+	public use<T extends Plugin>(plugin: T): void {
+		if (this.plugins.includes(plugin)) {
+			console.warn('[vue-injector] Plugin already registered, skipping duplicate');
+			return;
+		}
+		this.plugins.push(plugin);
+	}
+
+	/**
+	 * Registers multiple shared Vue plugins used by injected apps.
+	 *
+	 * @param plugins Vue plugin instances.
+	 */
+	public usePlugins(...plugins: Plugin[]): void {
+		for (const plugin of plugins) {
+			this.use(plugin);
+		}
+	}
+
+	/**
+	 * Gets the stored Pinia instance from the legacy compatibility slot.
+	 *
+	 * @returns Pinia plugin instance or `undefined` when unset.
 	 */
 	public getPinia(): Plugin | undefined {
 		return this.pinia;
@@ -82,15 +122,23 @@ export class TaskContext {
 	/**
 	 * Sets the Pinia instance used by injected apps.
 	 *
-	 * If an instance already exists, it will be overwritten.
+	 * This method is kept as a compatibility alias and internally registers
+	 * the Pinia instance as a shared plugin.
 	 *
 	 * @param piniaInstance Pinia plugin instance.
 	 */
 	public setPinia<T extends Plugin>(piniaInstance: T): void {
-		if (this.pinia) {
+		if (this.pinia && this.pinia !== piniaInstance) {
 			console.warn('[vue-injector] Pinia instance already set, overwriting');
+			this.plugins = this.plugins.filter((plugin) => plugin !== this.pinia);
 		}
+
+		if (this.pinia === piniaInstance) {
+			return;
+		}
+
 		this.pinia = piniaInstance;
+		this.use(piniaInstance);
 	}
 
 	public getTaskStatus(id: string): 'idle' | 'pending' | 'active' | undefined {
@@ -168,6 +216,7 @@ export class TaskContext {
 		this.taskRecords = [];
 		this.taskErrorMessages = [];
 
+		this.plugins = [];
 		this.pinia = undefined;
 
 		console.log('[vue-injector] All tasks destroyed');

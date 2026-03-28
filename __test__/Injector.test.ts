@@ -94,9 +94,20 @@ describe('Injector', () => {
 		expect(taskContext).toBe(context);
 	});
 
-	it('should set Pinia instance in Injector', () => {
+	it('should register shared plugins in Injector', () => {
+		const pluginA = { install: vi.fn() };
+		const pluginB = { install: vi.fn() };
+
+		const result = injector.use(pluginA).usePlugins(pluginB);
+
+		expect(result).toBe(injector);
+		expect(injector.getPlugins()).toEqual([pluginA, pluginB]);
+	});
+
+	it('should keep setPinia/getPinia compatible with shared plugin registration', () => {
 		const pinia = createPinia();
 		injector.setPinia(pinia);
+		expect(injector.getPlugins()).toContain(pinia);
 		expect(injector.getPinia()).toBe(pinia);
 	});
 

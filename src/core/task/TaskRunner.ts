@@ -214,8 +214,8 @@ export class TaskRunner {
 			return false;
 		}
 
-		const injectAt: string = context.componentInjectAt;
-		const pinia: Plugin | undefined = this.taskContext.getPinia();
+			const injectAt: string = context.componentInjectAt;
+			const plugins: Plugin[] = this.taskContext.getPlugins();
 
 		if (!context?.component || !context.taskId) {
 			console.error(
@@ -242,10 +242,10 @@ export class TaskRunner {
 
 		try {
 			// Create a Vue app instance and mount it to the newly created DOM node
-			const subApp: App<Element> = createApp(context.component);
-			if (pinia) {
-				subApp.use(pinia);
-			}
+				const subApp: App<Element> = createApp(context.component);
+				for (const plugin of plugins) {
+					subApp.use(plugin);
+				}
 			const vm: ComponentPublicInstance = subApp.mount(appRoot);
 
 			// Save to context

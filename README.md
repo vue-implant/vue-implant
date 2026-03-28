@@ -154,6 +154,57 @@ Return value:
 > [!NOTE]
 > You can call `registerListener()` after `run()`. The new listener task will be activated on the next `run()` call.
 
+### `Injector.use(plugin: Plugin): this`
+
+Registers a shared Vue plugin for every injected app created by the current `Injector`.
+
+**Minimal example:**
+
+```ts
+import { createPinia } from 'pinia';
+import { Injector } from 'vue-implant';
+
+const injector = new Injector();
+
+injector.use(createPinia());
+```
+
+### `Injector.usePlugins(...plugins: Plugin[]): this`
+
+Registers multiple shared Vue plugins in install order.
+
+**Minimal example:**
+
+```ts
+import { createPinia } from 'pinia';
+import { Injector } from 'vue-implant';
+
+const injector = new Injector();
+const pinia = createPinia();
+const analyticsPlugin = {
+	install() {
+		// custom plugin setup
+	}
+};
+
+injector.usePlugins(pinia, analyticsPlugin);
+```
+
+### `Injector.getPlugins(): Plugin[]`
+
+Returns the shared plugins currently registered on the injector.
+
+### `Injector.setPinia(pinia: Plugin): void`
+
+Legacy compatibility alias for Pinia-based setups. It still works and internally registers Pinia as a shared plugin.
+
+> [!NOTE]
+> New code should prefer `use()` / `usePlugins()`. `setPinia()` and `getPinia()` remain available for backward compatibility in `1.x`.
+
+### `Injector.getPinia(): Plugin | undefined`
+
+Returns the Pinia instance previously set through `setPinia()`.
+
 ### `Injector.enableAlive(taskId: string): void`
 
 Enables re-injection for a component task.
@@ -351,6 +402,10 @@ No. Re-registering the same `listenAt + event` emits a warning and returns the s
 ### 4) Can `enableAlive`/`disableAlive` be used for pure listener tasks?
 
 No. Calling these APIs on pure listener tasks returns immediately with warnings.
+
+### 5) Should I use `use()` or `setPinia()` for Pinia?
+
+Prefer `use(createPinia())` for new code. `setPinia()` is still supported in `1.x` as a compatibility alias, so existing integrations do not need an immediate migration.
 
 ## Roadmap 🛣️
 

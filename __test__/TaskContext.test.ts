@@ -11,6 +11,7 @@ describe('TaskContext', () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
+
 	describe('base curd', () => {
 		it('should set and get context correctly', () => {
 			const context: Task = {
@@ -51,6 +52,7 @@ describe('TaskContext', () => {
 			expect(keys).toContain('test1');
 			expect(keys).toContain('test2');
 		});
+
 		it('should clear all contexts', () => {
 			const context1: Task = {
 				taskId: 'test1'
@@ -65,6 +67,50 @@ describe('TaskContext', () => {
 			expect(taskContext.get('test2')).toBeUndefined();
 		});
 	});
+
+	describe('shared plugins', () => {
+		it('should register shared plugins in order and ignore duplicates', () => {
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const pluginA = { install: vi.fn() };
+			const pluginB = { install: vi.fn() };
+
+			taskContext.use(pluginA);
+			taskContext.usePlugins(pluginA, pluginB);
+
+			expect(taskContext.getPlugins()).toEqual([pluginA, pluginB]);
+			expect(warnSpy).toHaveBeenCalledWith(
+				'[vue-injector] Plugin already registered, skipping duplicate'
+			);
+		});
+
+		it('should keep getPlugins isolated from external mutation', () => {
+			const plugin = { install: vi.fn() };
+			taskContext.use(plugin);
+			const plugins = taskContext.getPlugins();
+
+			plugins.length = 0;
+
+			expect(taskContext.getPlugins()).toEqual([plugin]);
+		});
+
+		it('should keep setPinia/getPinia compatible and replace previous pinia plugin', () => {
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const otherPlugin = { install: vi.fn() };
+			const piniaA = { install: vi.fn() };
+			const piniaB = { install: vi.fn() };
+
+			taskContext.use(otherPlugin);
+			taskContext.setPinia(piniaA);
+			taskContext.setPinia(piniaB);
+
+			expect(taskContext.getPinia()).toBe(piniaB);
+			expect(taskContext.getPlugins()).toEqual([otherPlugin, piniaB]);
+			expect(warnSpy).toHaveBeenCalledWith(
+				'[vue-injector] Pinia instance already set, overwriting'
+			);
+		});
+	});
+
 	describe('task active state', () => {
 		it('should return null for unknown task and read active state for existing task', () => {
 			expect(taskContext.getTaskStatus('missing')).toBeUndefined();
@@ -81,6 +127,7 @@ describe('TaskContext', () => {
 			expect(taskContext.getTaskStatus('test')).toBe('active');
 		});
 	});
+
 	describe('destroy', () => {
 		it('should delete context of none existing id correctly', () => {
 			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -213,11 +260,11 @@ describe('TaskContext', () => {
 			// context 浠嶄粠 map 涓垹闄?			expect(taskContext.get('test')).toBeUndefined();
 		});
 	});
-	describe('destroyAll', () => {
-		it('should destroy all contexts correctly', () => {
-			const context1: Task = {
-				taskId: 'test1'
-			};
+		describe('destroyAll', () => {
+			it('should destroy all contexts correctly', () => {
+				const context1: Task = {
+					taskId: 'test1'
+				};
 			const context2: Task = {
 				taskId: 'test2'
 			};
@@ -278,10 +325,22 @@ describe('TaskContext', () => {
 			expect(mockWatcher1).toHaveBeenCalled();
 			expect(mockWatcher2).toHaveBeenCalled();
 		});
-		it('should not throw an error when contextMap is empty', () => {
-			expect(() => taskContext.destroyAll()).not.toThrow();
+			it('should not throw an error when contextMap is empty', () => {
+				expect(() => taskContext.destroyAll()).not.toThrow();
+			});
+
+			it('should clear shared plugins and legacy pinia on destroyAll', () => {
+				const plugin = { install: vi.fn() };
+				const pinia = { install: vi.fn() };
+
+				taskContext.use(plugin);
+				taskContext.setPinia(pinia);
+				taskContext.destroyAll();
+
+				expect(taskContext.getPlugins()).toEqual([]);
+				expect(taskContext.getPinia()).toBeUndefined();
+			});
 		});
-	});
 
 	describe('releaseComponentInstance', () => {
 		it('should unmount app and remove DOM element', () => {

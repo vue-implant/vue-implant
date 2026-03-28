@@ -152,6 +152,57 @@ type InjectionConfig = {
 > [!NOTE]
 > 支持在 `run()` 后继续 `registerListener()`，新增监听任务会在下一次 `run()` 时激活。
 
+### `Injector.use(plugin: Plugin): this`
+
+为当前 `Injector` 创建的每个注入子应用注册共享 Vue 插件。
+
+**最小示例：**
+
+```ts
+import { createPinia } from 'pinia';
+import { Injector } from 'vue-implant';
+
+const injector = new Injector();
+
+injector.use(createPinia());
+```
+
+### `Injector.usePlugins(...plugins: Plugin[]): this`
+
+按注册顺序为当前 `Injector` 批量注册共享 Vue 插件。
+
+**最小示例：**
+
+```ts
+import { createPinia } from 'pinia';
+import { Injector } from 'vue-implant';
+
+const injector = new Injector();
+const pinia = createPinia();
+const analyticsPlugin = {
+	install() {
+		// custom plugin setup
+	}
+};
+
+injector.usePlugins(pinia, analyticsPlugin);
+```
+
+### `Injector.getPlugins(): Plugin[]`
+
+返回当前注入器上已注册的共享插件列表。
+
+### `Injector.setPinia(pinia: Plugin): void`
+
+面向 Pinia 场景保留的兼容别名。它仍然可用，内部会把 Pinia 作为共享插件注册。
+
+> [!NOTE]
+> 新代码建议优先使用 `use()` / `usePlugins()`。`setPinia()` 与 `getPinia()` 在 `1.x` 中仍保留兼容。
+
+### `Injector.getPinia(): Plugin | undefined`
+
+返回此前通过 `setPinia()` 设置的 Pinia 实例。
+
 ### `Injector.enableAlive(taskId: string): void`
 
 开启组件的重注入机制。
@@ -349,6 +400,10 @@ injector.controlListener(taskId, Action.CLOSE);
 ### 4) `enableAlive`/`disableAlive` 能用于纯监听任务吗？
 
 不能。纯监听任务调用这两个 API 会直接返回并给出警告。
+
+### 5) Pinia 应该用 `use()` 还是 `setPinia()`？
+
+新代码优先使用 `use(createPinia())`。`setPinia()` 在 `1.x` 里仍然保留，作为兼容别名，现有接入不需要立刻迁移。
 
 ## 路线图 🛣️
 

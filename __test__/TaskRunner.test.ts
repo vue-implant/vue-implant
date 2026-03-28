@@ -78,6 +78,28 @@ describe('TaskRunner', () => {
 		expect(task.taskStatus).toBe('active');
 	});
 
+	it('should install all registered shared plugins when mounting component', () => {
+		const host = document.createElement('div');
+		host.id = 'plugin-host';
+		document.body.appendChild(host);
+		const pluginA = { install: vi.fn() };
+		const pluginB = { install: vi.fn() };
+
+		taskContext.usePlugins(pluginA, pluginB);
+		taskContext.set('plugin-task', {
+			taskId: 'plugin-task',
+			taskStatus: 'idle',
+			componentName: 'PluginComp',
+			componentInjectAt: '#plugin-host',
+			component: { name: 'PluginComp', render: () => null }
+		});
+
+		taskRunner.onTargetReady(host, 'plugin-task');
+
+		expect(pluginA.install).toHaveBeenCalledOnce();
+		expect(pluginB.install).toHaveBeenCalledOnce();
+	});
+
 	it('should route to bindListenerSignal when activitySignal exists on onTargetReady', () => {
 		const host = document.createElement('div');
 		host.id = 'route-signal';

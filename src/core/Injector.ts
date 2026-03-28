@@ -73,6 +73,20 @@ export class Injector {
 		return this.taskContext;
 	}
 
+	public use<T extends Plugin>(plugin: T): this {
+		this.taskContext.use(plugin);
+		return this;
+	}
+
+	public usePlugins(...plugins: Plugin[]): this {
+		this.taskContext.usePlugins(...plugins);
+		return this;
+	}
+
+	public getPlugins(): Plugin[] {
+		return this.taskContext.getPlugins();
+	}
+
 	public setPinia<T extends Plugin>(pinia: T): void {
 		this.taskContext.setPinia(pinia);
 	}
