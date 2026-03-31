@@ -1,15 +1,22 @@
 ﻿import type { Plugin } from 'vue';
-import type { Task, TaskErrorMessage, TaskRecord } from '../../type';
+import type { ILogger, Task, TaskErrorMessage, TaskRecord } from '../../type';
+import { Logger } from '../logger/Logger';
 
 /**
  * Central runtime registry for all injection tasks.
  *
-	 * This context stores task instances, task records, and transient runtime state
-	 * (watchers, listeners, component roots, and shared Vue plugins). It also provides
+ * This context stores task instances, task records, and transient runtime state
+ * (watchers, listeners, component roots, and shared Vue plugins). It also provides
  * unified teardown utilities for single-task and full-context cleanup to avoid
  * memory leaks from unreleased DOM nodes, listeners, and reactive watchers.
  */
 export class TaskContext {
+	private readonly logger: ILogger;
+
+	constructor(logger: ILogger = new Logger()) {
+		this.logger = logger;
+	}
+
 	/**
 	 * Stores failed task injection messages.
 	 *
@@ -93,7 +100,7 @@ export class TaskContext {
 	 */
 	public use<T extends Plugin>(plugin: T): void {
 		if (this.plugins.includes(plugin)) {
-			console.warn('[vue-injector] Plugin already registered, skipping duplicate');
+			this.logger.warn('Plugin already registered, skipping duplicate');
 			return;
 		}
 		this.plugins.push(plugin);
@@ -129,7 +136,7 @@ export class TaskContext {
 	 */
 	public setPinia<T extends Plugin>(piniaInstance: T): void {
 		if (this.pinia && this.pinia !== piniaInstance) {
-			console.warn('[vue-injector] Pinia instance already set, overwriting');
+			this.logger.warn('Pinia instance already set, overwriting');
 			this.plugins = this.plugins.filter((plugin) => plugin !== this.pinia);
 		}
 
@@ -163,7 +170,7 @@ export class TaskContext {
 	public destroy(id: string): void {
 		const context: Task | undefined = this.contextMap.get(id);
 		if (!context) {
-			console.warn(`[vue-injector] Task "${id}" not found, may already be destroyed`);
+			this.logger.warn(`Task "${id}" not found, may already be destroyed`);
 			return;
 		}
 		context.taskStatus = 'idle';
@@ -219,7 +226,7 @@ export class TaskContext {
 		this.plugins = [];
 		this.pinia = undefined;
 
-		console.log('[vue-injector] All tasks destroyed');
+		this.logger.info('All tasks destroyed');
 	}
 
 	/**
@@ -235,13 +242,10 @@ export class TaskContext {
 				context.app = undefined;
 				context.instance = undefined;
 			} catch (error) {
-				console.error(
-					`[vue-injector] Failed to unmount component for task "${id}":`,
-					error
-				);
+				this.logger.error(`Failed to unmount component for task "${id}":`, error);
 			}
 		} else {
-			console.warn(`[vue-injector] Component for task "${id}" already unmounted`);
+			this.logger.warn(`Component for task "${id}" already unmounted`);
 		}
 	}
 
@@ -253,22 +257,18 @@ export class TaskContext {
 	public releaseDomElement(id: string): void {
 		const context: Task | undefined = this.contextMap.get(id);
 		if (!context) {
-			console.warn(
-				`[vue-injector] Task "${id}" context not found, unable to remove root element`
-			);
+			this.logger.warn(`Task "${id}" context not found, unable to remove root element`);
 			return;
 		}
 		if (!context.appRoot) {
-			console.warn(
-				`[vue-injector] Root element for task "${id}" not found, may already be removed`
-			);
+			this.logger.warn(`Root element for task "${id}" not found, may already be removed`);
 			return;
 		}
 		try {
 			context.appRoot.remove();
 			context.appRoot = undefined;
 		} catch (error) {
-			console.error(`[vue-injector] Failed to remove root element for task "${id}":`, error);
+			this.logger.error(`Failed to remove root element for task "${id}":`, error);
 		}
 	}
 
@@ -285,7 +285,7 @@ export class TaskContext {
 			try {
 				context.controller.abort();
 			} catch (error) {
-				console.error(`[vue-injector] Failed to abort listener for task "${id}":`, error);
+				this.logger.error(`Failed to abort listener for task "${id}":`, error);
 			}
 		}
 
@@ -311,7 +311,7 @@ export class TaskContext {
 				context.watcher = undefined;
 				context.watchSource = undefined;
 			} catch (error) {
-				console.error(`[vue-injector] Failed to stop watcher for task "${id}":`, error);
+				this.logger.error(`Failed to stop watcher for task "${id}":`, error);
 			}
 		}
 	}

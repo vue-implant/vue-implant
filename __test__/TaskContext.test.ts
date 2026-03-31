@@ -79,7 +79,7 @@ describe('TaskContext', () => {
 
 			expect(taskContext.getPlugins()).toEqual([pluginA, pluginB]);
 			expect(warnSpy).toHaveBeenCalledWith(
-				'[vue-injector] Plugin already registered, skipping duplicate'
+				expect.stringContaining('Plugin already registered, skipping duplicate')
 			);
 		});
 
@@ -106,7 +106,7 @@ describe('TaskContext', () => {
 			expect(taskContext.getPinia()).toBe(piniaB);
 			expect(taskContext.getPlugins()).toEqual([otherPlugin, piniaB]);
 			expect(warnSpy).toHaveBeenCalledWith(
-				'[vue-injector] Pinia instance already set, overwriting'
+				expect.stringContaining('Pinia instance already set, overwriting')
 			);
 		});
 	});

@@ -1,4 +1,5 @@
-import type { InjectCallback, ObserverOptions } from '../../type';
+import type { ILogger, InjectCallback, ObserverOptions } from '../../type';
+import { Logger } from '../logger/Logger';
 
 /**
  * Observe the DOM for elements matching the given selector.
@@ -7,7 +8,8 @@ export function onDomReady(
 	selector: string,
 	callback: InjectCallback,
 	root: Document | HTMLElement = document,
-	options: ObserverOptions
+	options: ObserverOptions,
+	logger: ILogger = new Logger()
 ): () => void {
 	const observers: MutationObserver[] = [];
 	let isDisconnected = false;
@@ -28,7 +30,7 @@ export function onDomReady(
 		// In once mode, disconnect immediately after finding the element
 		if (options?.once) {
 			disconnect();
-			console.log(`[vue-injector] Element "${selector}" found, observer disconnected`);
+			logger.info(`Element "${selector}" found, observer disconnected`);
 		}
 	};
 
@@ -45,8 +47,8 @@ export function onDomReady(
 		setTimeout(() => {
 			if (isDisconnected) return;
 			disconnect();
-			console.warn(
-				`[vue-injector] Element "${selector}" not found within ${options.timeout}ms, observer disconnected`
+			logger.warn(
+				`Element "${selector}" not found within ${options.timeout}ms, observer disconnected`
 			);
 		}, options.timeout);
 	}
@@ -63,7 +65,8 @@ export function onDomAlive(
 	onRemove: () => void,
 	onRestore: InjectCallback,
 	root: Document | HTMLElement = document,
-	options: ObserverOptions
+	options: ObserverOptions,
+	logger: ILogger = new Logger()
 ): () => void {
 	let isObserver: boolean = true;
 	let stopReadyObserver: (() => void) | undefined;
@@ -80,10 +83,12 @@ export function onDomAlive(
 					onRestore(newTarget);
 				},
 				document,
-				options
+				options,
+				logger
 			);
 		},
-		root
+		root,
+		logger
 	);
 
 	return () => {
@@ -91,7 +96,7 @@ export function onDomAlive(
 		isObserver = false;
 		removalObserver?.disconnect();
 		stopReadyObserver?.();
-		console.log(`[vue-injector] Alive observer for "${selector}" stopped`);
+		logger.info(`Alive observer for "${selector}" stopped`);
 	};
 }
 
@@ -142,21 +147,18 @@ function setupMutationObserver(
 function setupRemovalObserver(
 	target: HTMLElement,
 	callback: (obs?: MutationObserver) => void,
-	root: Document | HTMLElement
+	root: Document | HTMLElement,
+	logger: ILogger
 ): MutationObserver | null {
 	const baseTarget: HTMLElement | HTMLBodyElement | null = getObserveTarget(root);
 	const isDocument: boolean = baseTarget instanceof HTMLBodyElement;
 	if (baseTarget === null) {
-		console.error(
-			'[vue-injector] Failed to set up removal observer: no valid observation target found'
-		);
+		logger.error('Failed to set up removal observer: no valid observation target found');
 		return null;
 	}
 
 	if (!isDocument && !baseTarget.isConnected) {
-		console.error(
-			'[vue-injector] Failed to set up removal observer: observation target is detached from DOM'
-		);
+		logger.error('Failed to set up removal observer: observation target is detached from DOM');
 		return null;
 	}
 
@@ -185,7 +187,7 @@ function setupRemovalObserver(
 		subtree: !!isDocument
 	});
 
-	console.log('[vue-injector] Removal observer started', observerNode);
+	logger.info('Removal observer started', observerNode);
 	return observer;
 }
 

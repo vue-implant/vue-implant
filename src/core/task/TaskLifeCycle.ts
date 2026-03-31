@@ -1,5 +1,6 @@
 import { nextTick } from 'vue';
-import type { InjectionConfig, Task } from '../../type';
+import type { ILogger, InjectionConfig, Task } from '../../type';
+import { Logger } from '../logger/Logger';
 import { DOMWatcher } from '../watcher/DomWatcher';
 import type { TaskContext } from './TaskContext';
 
@@ -7,35 +8,36 @@ export class TaskLifeCycle {
 	private readonly taskContext: TaskContext;
 	private readonly injectConfig: InjectionConfig;
 	private readonly onTargetReady: (targetElement: HTMLElement, taskId: string) => void;
+	private readonly logger: ILogger;
 
 	constructor(
 		taskContext: TaskContext,
 		onTargetReady: (targetElement: HTMLElement, taskId: string) => void,
-		injectConfig: InjectionConfig
+		injectConfig: InjectionConfig,
+		logger?: ILogger
 	) {
 		this.taskContext = taskContext;
 		this.onTargetReady = onTargetReady;
 		this.injectConfig = injectConfig;
+		this.logger = logger ?? injectConfig.logger ?? new Logger();
 	}
 
 	public enableAlive(taskId: string): void {
 		const context = this.taskContext.get(taskId);
 		if (!context) {
-			console.error(`[vue-injector] Task "${taskId}" not found`);
+			this.logger.error(`Task "${taskId}" not found`);
 			return;
 		}
 
 		// enableAlive only applies to component tasks
 		if (!context.component || !context.componentInjectAt) {
-			console.warn(
-				`[vue-injector] enableAlive is not applicable to non-component task "${taskId}"`
-			);
+			this.logger.warn(`enableAlive is not applicable to non-component task "${taskId}"`);
 			return;
 		}
 
 		// Already alive with an active observer, skip
 		if (context.alive && context.isObserver) {
-			console.warn(`[vue-injector] Task "${taskId}" already has an active alive observer`);
+			this.logger.warn(`Task "${taskId}" already has an active alive observer`);
 			return;
 		}
 
@@ -46,15 +48,15 @@ export class TaskLifeCycle {
 		// placeholder stop handler for pending async setup
 		context.disableAlive = () => {};
 
-		// Case 1: Component is already mounted and connected - set up the alive observer directly
-		if (context.app && context.appRoot?.isConnected) {
-			const matchedElement = context.appRoot.parentElement;
-			if (!matchedElement) {
-				console.warn(
-					`[vue-injector] Task "${taskId}": host element not found, unable to activate alive observer`
-				);
-				return;
-			}
+			// Case 1: Component is already mounted and connected - set up the alive observer directly
+			if (context.app && context.appRoot?.isConnected) {
+				const matchedElement = context.appRoot.parentElement;
+				if (!matchedElement) {
+					this.logger.warn(
+						`Task "${taskId}": host element not found, unable to activate alive observer`
+					);
+					return;
+				}
 
 			const currentDocument = matchedElement.ownerDocument || document;
 			const injectAt = context.componentInjectAt;
@@ -62,19 +64,20 @@ export class TaskLifeCycle {
 			nextTick().then(() => {
 				if (!context.alive || context.aliveEpoch !== aliveEpoch) return;
 
-				const stopHandler = DOMWatcher.onDomAlive(
-					matchedElement,
-					injectAt,
-					() => {
-						this.taskContext.reset(taskId);
-					},
-					(el): void => this.onTargetReady(el, taskId),
-					context.scope === 'global' ? currentDocument : matchedElement,
-					{
-						once: true,
-						timeout: this.injectConfig.timeout
-					}
-				);
+					const stopHandler = DOMWatcher.onDomAlive(
+						matchedElement,
+						injectAt,
+						() => {
+							this.taskContext.reset(taskId);
+				},
+						(el): void => this.onTargetReady(el, taskId),
+						context.scope === 'global' ? currentDocument : matchedElement,
+						{
+							once: true,
+							timeout: this.injectConfig.timeout
+				},
+					this.logger
+					);
 
 				if (!context.alive || context.aliveEpoch !== aliveEpoch) {
 					stopHandler();
@@ -82,7 +85,7 @@ export class TaskLifeCycle {
 				}
 				context.disableAlive = stopHandler;
 				context.isObserver = true;
-				console.log(`[vue-injector] Task "${taskId}" alive observer activated`);
+				this.logger.info(`Task "${taskId}" alive observer activated`);
 			});
 			return;
 		}
@@ -100,25 +103,26 @@ export class TaskLifeCycle {
 			let cancelled = false;
 			const stopReadyObserver = DOMWatcher.onDomReady(
 				context.componentInjectAt,
-				(el): void => {
-					if (cancelled || !context.alive || context.aliveEpoch !== aliveEpoch) {
-						console.warn(
-							`[vue-injector] Task "${taskId}" alive epoch changed before element appears`
-						);
+					(el): void => {
+						if (cancelled || !context.alive || context.aliveEpoch !== aliveEpoch) {
+					this.logger.warn(
+								`Task "${taskId}" alive epoch changed before element appears`
+					);
 						return;
 					}
-					this.onTargetReady(el, taskId);
+						this.onTargetReady(el, taskId);
 				},
-				document,
-				{ once: true, timeout: this.injectConfig.timeout }
-			);
+					document,
+					{ once: true, timeout: this.injectConfig.timeout },
+					this.logger
+				);
 			context.disableAlive = () => {
 				if (cancelled) return;
 				cancelled = true;
 				stopReadyObserver();
 			};
 			context.isObserver = true;
-			console.log(`[vue-injector] Task "${taskId}" awaiting target element for re-injection`);
+			this.logger.info(`Task "${taskId}" awaiting target element for re-injection`);
 		}
 	}
 
@@ -126,13 +130,13 @@ export class TaskLifeCycle {
 		const context = this.taskContext.get(taskId);
 
 		if (!context) {
-			console.error(`[vue-injector] Task "${taskId}" not found`);
+			this.logger.error(`Task "${taskId}" not found`);
 			return;
 		}
 
 		// status check: if not set alive mode or set false to alive mode, warn and exit
 		if (!context.alive) {
-			console.warn(`[vue-injector] Task "${taskId}" has no active alive observer to stop`);
+			this.logger.warn(`Task "${taskId}" has no active alive observer to stop`);
 			return;
 		}
 

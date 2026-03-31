@@ -2,21 +2,25 @@ import type { Component, Ref } from 'vue';
 import type {
 	_RegisterResult,
 	ComponentOptions,
+	ILogger,
 	InjectionConfig,
 	ListenerRegisterResult,
 	Task
 } from '../../type';
 import { getComponentName } from '../../util/getComponentName';
 import { markRawComponent } from '../../util/markRawComponent';
+import { Logger } from '../logger/Logger';
 import type { TaskContext } from './TaskContext';
 
 export class TaskRegister {
 	private readonly taskContext: TaskContext;
 	private readonly injectConfig: InjectionConfig;
+	private readonly logger: ILogger;
 
-	constructor(taskContext: TaskContext, injectConfig: InjectionConfig) {
+	constructor(taskContext: TaskContext, injectConfig: InjectionConfig, logger?: ILogger) {
 		this.taskContext = taskContext;
 		this.injectConfig = injectConfig;
+		this.logger = logger ?? injectConfig.logger ?? new Logger();
 	}
 
 	private getTaskId(component: Component, selector: string): string {
@@ -34,7 +38,7 @@ export class TaskRegister {
 		const id: string = `listener-${listenAt}-${event}`;
 
 		if (this.taskContext.has(id)) {
-			console.warn(`[vue-injector] Listener "${id}" is already registered, skipping`);
+			this.logger.warn(`Listener "${id}" is already registered, skipping`);
 			return {
 				taskId: id,
 				isSuccess: true
@@ -56,7 +60,7 @@ export class TaskRegister {
 		}
 		this.taskContext.set(id, context);
 		this.taskContext.taskRecords.push({ taskId: id, injectAt: listenAt });
-		console.log(`[vue-injector] Listener "${id}" registered`);
+		this.logger.info(`Listener "${id}" registered`);
 		return {
 			taskId: id,
 			isSuccess: true
@@ -71,7 +75,7 @@ export class TaskRegister {
 
 		if (this.taskContext.has(taskId)) {
 			// Component already registered, return directly
-			console.warn(`[vue-injector] Task "${taskId}" is already registered, skipping`);
+			this.logger.warn(`Task "${taskId}" is already registered, skipping`);
 			return {
 				taskId: taskId,
 				isSuccess: true
@@ -112,7 +116,7 @@ export class TaskRegister {
 			taskId: taskId,
 			injectAt: injectAt
 		});
-		console.log(`[vue-injector] Task "${taskId}" registered`);
+		this.logger.info(`Task "${taskId}" registered`);
 		return {
 			taskId: taskId,
 			isSuccess: true

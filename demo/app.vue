@@ -52,10 +52,10 @@ injector.registerListener('#case-listener-button', 'click', () => {
     addLog('Case 5: pure listener fired (no component injection).')
 })
 
-injector.register('#case-reinject-target', InjectedBadge, {
-    alive: true,
-    scope: 'local',
-})
+// injector.register('#case-reinject-target', InjectedBadge, {
+//     alive: true,
+//     scope: 'local',
+// })
 
 provide<RegisterResult>('delayCase:result', result);
 

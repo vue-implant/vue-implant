@@ -104,7 +104,7 @@ describe('Injector', () => {
 		expect(onDomReadySpy).toHaveBeenCalledWith('#app', expect.any(Function), document, {
 			once: true,
 			timeout: 10000
-		});
+		}, expect.anything());
 	});
 
 	it('should run task with custom timeout', () => {
@@ -122,7 +122,7 @@ describe('Injector', () => {
 		expect(onDomReadySpy).toHaveBeenCalledWith('#app', expect.any(Function), document, {
 			once: true,
 			timeout: 5000
-		});
+		}, expect.anything());
 	});
 
 	it('should register shared plugins in Injector', () => {

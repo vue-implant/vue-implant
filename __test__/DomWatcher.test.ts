@@ -70,7 +70,7 @@ describe('DOMWatcher', () => {
 		});
 
 		it('should disconnect observer in once mode after finding element', () => {
-			const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+			const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
 
 			const el = document.createElement('div');
 			el.id = 'once-target';
@@ -196,7 +196,7 @@ describe('DOMWatcher', () => {
 
 			const onRemove = vi.fn();
 			const onRestore = vi.fn<InjectCallback>();
-			const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+			const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
 
 			const stop = DOMWatcher.onDomAlive(el, '#stoppable', onRemove, onRestore, document, {
 				once: true
@@ -257,7 +257,7 @@ describe('DOMWatcher', () => {
 		it('should not invoke callback after disconnect (once + timeout race)', async () => {
 			vi.useRealTimers();
 			const cb = vi.fn<InjectCallback>();
-			vi.spyOn(console, 'log').mockImplementation(() => {});
+			vi.spyOn(console, 'info').mockImplementation(() => {});
 
 			// Element already exists → once triggers disconnect immediately
 			const el = document.createElement('div');

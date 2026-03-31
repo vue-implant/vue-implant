@@ -35,6 +35,7 @@ export type InjectionConfig = {
 	alive?: boolean;
 	scope?: 'local' | 'global';
 	timeout?: number;
+	logger?: ILogger;
 };
 export type InjectCallback = (el: HTMLElement, observer?: MutationObserver) => void;
 export type Task = {
@@ -89,3 +90,11 @@ export type _RegisterResult = {
 	taskId: string;
 	isSuccess: boolean;
 };
+
+export interface ILogger {
+	info(message: string, ...args: unknown[]): void;
+	warn(message: string, ...args: unknown[]): void;
+	error(message: string, ...args: unknown[]): void;
+	debug(message: string, ...args: unknown[]): void;
+}
+export type LoggerLevel = 'debug' | 'info' | 'warn' | 'error';

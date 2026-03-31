@@ -2,10 +2,12 @@
 import type {
 	ActionEvent,
 	ComponentOptions,
+	ILogger,
 	InjectionConfig,
 	ListenerRegisterResult,
 	RegisterResult
 } from '../type';
+import { Logger } from './logger/Logger';
 import { TaskContext } from './task/TaskContext';
 import { TaskLifeCycle } from './task/TaskLifeCycle';
 import { TaskRegister } from './task/TaskRegister';
@@ -17,6 +19,7 @@ export class Injector {
 	private readonly taskRegister: TaskRegister;
 	private readonly taskRunner: TaskRunner;
 	private readonly taskLifeCycle: TaskLifeCycle;
+	private readonly logger: ILogger;
 	private readonly injectConfig: InjectionConfig = {
 		alive: false,
 		scope: 'local',
@@ -24,14 +27,16 @@ export class Injector {
 	};
 
 	constructor(config: Partial<InjectionConfig> = {}) {
-		this.taskContext = new TaskContext();
-		this.injectConfig = { ...this.injectConfig, ...config };
-		this.taskRegister = new TaskRegister(this.taskContext, this.injectConfig);
-		this.taskRunner = new TaskRunner(this.taskContext, this.injectConfig);
+		this.logger = config.logger ?? new Logger();
+		this.taskContext = new TaskContext(this.logger);
+		this.injectConfig = { ...this.injectConfig, ...config, logger: this.logger };
+		this.taskRegister = new TaskRegister(this.taskContext, this.injectConfig, this.logger);
+		this.taskRunner = new TaskRunner(this.taskContext, this.injectConfig, this.logger);
 		this.taskLifeCycle = new TaskLifeCycle(
 			this.taskContext,
 			(targetElement, taskId) => this.taskRunner.onTargetReady(targetElement, taskId),
-			this.injectConfig
+			this.injectConfig,
+			this.logger
 		);
 	}
 

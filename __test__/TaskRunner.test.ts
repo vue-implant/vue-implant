@@ -17,7 +17,7 @@ describe('TaskRunner', () => {
 			timeout: 5000
 		});
 		document.body.innerHTML = '';
-		vi.spyOn(console, 'log').mockImplementation(() => {});
+		vi.spyOn(console, 'info').mockImplementation(() => {});
 	});
 
 	afterEach(() => {
@@ -39,7 +39,7 @@ describe('TaskRunner', () => {
 
 		expect(spy).toHaveBeenCalledWith('#app', expect.any(Function), document, {
 			once: true
-		});
+		}, expect.anything());
 		expect(taskContext.getTaskStatus('task-a')).toBe('pending');
 	});
 
@@ -600,6 +600,7 @@ describe('TaskRunner', () => {
 		expect(taskContext.get('alive-callback-task')?.taskStatus).toBe('idle');
 	});
 	it('should set Task`s timeout config correctly', async () => {
+		const onDomReadySpy = vi.spyOn(DOMWatcher, 'onDomReady');
 		taskContext.set('timeout-task', {
 			taskId: 'timeout-task',
 			taskStatus: 'idle',
@@ -609,11 +610,9 @@ describe('TaskRunner', () => {
 
 		taskRunner.run();
 
-		const onDomReadySpy = vi.spyOn(DOMWatcher, 'onDomReady');
-
 		expect(onDomReadySpy).toHaveBeenCalledWith('#app', expect.any(Function), document, {
 			once: true,
 			timeout: 5000
-		});
+		}, expect.anything());
 	});
 });
