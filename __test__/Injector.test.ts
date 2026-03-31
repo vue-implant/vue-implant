@@ -6,6 +6,7 @@ import { TaskContext } from '../src/core/task/TaskContext';
 import type { TaskLifeCycle } from '../src/core/task/TaskLifeCycle';
 import type { TaskRegister } from '../src/core/task/TaskRegister';
 import type { TaskRunner } from '../src/core/task/TaskRunner';
+import { DOMWatcher } from '../src/core/watcher/DomWatcher';
 import { Action } from '../src/type';
 
 describe('Injector', () => {
@@ -92,6 +93,36 @@ describe('Injector', () => {
 		expect(context).toBeDefined();
 		expect(context).toBeInstanceOf(TaskContext);
 		expect(taskContext).toBe(context);
+	});
+
+	it('should set timeout in global config', () => {
+		const onDomReadySpy = vi.spyOn(DOMWatcher, 'onDomReady');
+		const testInjector = new Injector({ timeout: 10000 });
+		testInjector.register('#app', { name: 'AppComp' });
+		testInjector.run();
+
+		expect(onDomReadySpy).toHaveBeenCalledWith('#app', expect.any(Function), document, {
+			once: true,
+			timeout: 10000
+		});
+	});
+
+	it('should run task with custom timeout', () => {
+		const onDomReadySpy = vi.spyOn(DOMWatcher, 'onDomReady');
+		const testInjector = new Injector();
+		testInjector.register(
+			'#app',
+			{ name: 'AppComp' },
+			{
+				timeout: 5000
+			}
+		);
+		testInjector.run();
+
+		expect(onDomReadySpy).toHaveBeenCalledWith('#app', expect.any(Function), document, {
+			once: true,
+			timeout: 5000
+		});
 	});
 
 	it('should register shared plugins in Injector', () => {

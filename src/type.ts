@@ -9,6 +9,7 @@ export type ActionEvent = 'OPEN' | 'CLOSE';
 export type ComponentOptions = {
 	alive?: boolean;
 	scope?: 'local' | 'global';
+	timeout?: number;
 	on?: {
 		listenAt: string;
 		type: string;
@@ -67,6 +68,7 @@ export type Task = {
 	alive?: boolean;
 	aliveEpoch?: number;
 	scope?: 'local' | 'global';
+	timeout?: number;
 
 	//placeholder
 	disableAlive?: () => void;

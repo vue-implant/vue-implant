@@ -38,8 +38,7 @@ describe('TaskRunner', () => {
 		taskRunner.run();
 
 		expect(spy).toHaveBeenCalledWith('#app', expect.any(Function), document, {
-			once: true,
-			timeout: 5000
+			once: true
 		});
 		expect(taskContext.getTaskStatus('task-a')).toBe('pending');
 	});
@@ -599,5 +598,22 @@ describe('TaskRunner', () => {
 
 		expect(resetSpy).toHaveBeenCalledWith('alive-callback-task');
 		expect(taskContext.get('alive-callback-task')?.taskStatus).toBe('idle');
+	});
+	it('should set Task`s timeout config correctly', async () => {
+		taskContext.set('timeout-task', {
+			taskId: 'timeout-task',
+			taskStatus: 'idle',
+			timeout: 5000
+		});
+		taskContext.taskRecords.push({ taskId: 'timeout-task', injectAt: '#app' });
+
+		taskRunner.run();
+
+		const onDomReadySpy = vi.spyOn(DOMWatcher, 'onDomReady');
+
+		expect(onDomReadySpy).toHaveBeenCalledWith('#app', expect.any(Function), document, {
+			once: true,
+			timeout: 5000
+		});
 	});
 });

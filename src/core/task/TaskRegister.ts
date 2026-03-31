@@ -89,6 +89,7 @@ export class TaskRegister {
 			alive: option?.alive ?? this.injectConfig.alive,
 			aliveEpoch: 0,
 			scope: option?.scope ?? this.injectConfig.scope,
+			timeout: option?.timeout ?? this.injectConfig.timeout,
 			isObserver: false
 		};
 

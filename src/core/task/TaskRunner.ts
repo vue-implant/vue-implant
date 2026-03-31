@@ -21,12 +21,17 @@ export class TaskRunner {
 			);
 		}
 		this.taskContext.taskRecords.forEach(({ taskId: id, injectAt }) => {
-			const status = this.taskContext.getTaskStatus(id);
+			const status: 'idle' | 'pending' | 'active' | undefined =
+				this.taskContext.getTaskStatus(id);
+
+			const task: Task | undefined = this.taskContext.get(id);
+
+			if (!task || !status) return;
 			if (status === 'active' || status === 'pending') return;
 
 			DOMWatcher.onDomReady(injectAt, (el): void => this.onTargetReady(el, id), document, {
 				once: true,
-				timeout: this.injectConfig.timeout
+				timeout: task.timeout
 			});
 			if (this.taskContext.getTaskStatus(id) !== 'active') {
 				// when the target element is exist, will sync call the func ,so we do not set to pending
@@ -214,8 +219,8 @@ export class TaskRunner {
 			return false;
 		}
 
-			const injectAt: string = context.componentInjectAt;
-			const plugins: Plugin[] = this.taskContext.getPlugins();
+		const injectAt: string = context.componentInjectAt;
+		const plugins: Plugin[] = this.taskContext.getPlugins();
 
 		if (!context?.component || !context.taskId) {
 			console.error(
@@ -242,10 +247,10 @@ export class TaskRunner {
 
 		try {
 			// Create a Vue app instance and mount it to the newly created DOM node
-				const subApp: App<Element> = createApp(context.component);
-				for (const plugin of plugins) {
-					subApp.use(plugin);
-				}
+			const subApp: App<Element> = createApp(context.component);
+			for (const plugin of plugins) {
+				subApp.use(plugin);
+			}
 			const vm: ComponentPublicInstance = subApp.mount(appRoot);
 
 			// Save to context
