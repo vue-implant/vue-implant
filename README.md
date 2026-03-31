@@ -77,6 +77,7 @@ type InjectionConfig = {
 	alive?: boolean;
 	scope?: 'local' | 'global';
 	timeout?: number;
+	logger?: ILogger;
 };
 ```
 
@@ -85,6 +86,7 @@ type InjectionConfig = {
 | `alive` | `boolean` | Whether to enable global re-injection. | `false` |
 | `scope` | `'local' \| 'global'` | `local` binds listeners to the target element's parent; `global` mounts listeners to `body`, so listeners can remain active when local DOM is rebuilt. | `'local'` |
 | `timeout` | `number` | Timeout threshold (ms) for initial injection and re-injection. Setting it explicitly to `undefined` is not recommended. | `5000` |
+| `logger` | `ILogger` | Custom logger implementation. When omitted, the built-in logger is used. | built-in logger |
 
 ### `Injector.run(): void`
 
@@ -199,11 +201,32 @@ Returns the shared plugins currently registered on the injector.
 Legacy compatibility alias for Pinia-based setups. It still works and internally registers Pinia as a shared plugin.
 
 > [!NOTE]
-> New code should prefer `use()` / `usePlugins()`. `setPinia()` and `getPinia()` remain available for backward compatibility in `1.x`.
+> New Version should prefer `use()` / `usePlugins()`. `setPinia()` and `getPinia()` remain available for backward compatibility in `1.x`.
 
 ### `Injector.getPinia(): Plugin | undefined`
 
 Returns the Pinia instance previously set through `setPinia()`.
+
+### Logging
+
+`vue-implant` writes internal runtime logs through a unified logger instead of directly use `console` inside each module.
+
+- Default log format: `[Vue Implant][LEVEL][ISO_TIMESTAMP] message`
+
+**Minimal example:**
+
+```ts
+import { Injector, type ILogger } from 'vue-implant';
+
+const logger: ILogger = {
+	info: (message, ...args) => console.info(`[My App] ${message}`, ...args),
+	warn: (message, ...args) => console.warn(`[My App] ${message}`, ...args),
+	error: (message, ...args) => console.error(`[My App] ${message}`, ...args),
+	debug: (message, ...args) => console.debug(`[My App] ${message}`, ...args)
+};
+
+const injector = new Injector({ logger });
+```
 
 ### `Injector.enableAlive(taskId: string): void`
 
@@ -409,7 +432,8 @@ Prefer `use(createPinia())` for new code. `setPinia()` is still supported in `1.
 
 ## Roadmap 🛣️
 
-- [ ] **Refactor and decouple injector logic:** split injection flows into smaller modules with clearer responsibilities.
+- [x] **Refactor and decouple injector logic:** split injection flows into smaller modules with clearer responsibilities.
+- [x] **Implement a simple logging system:** Replace multiple `console` calls within the module, and uniformly output logs through built-in or externally integrated logging modules
 - [ ] **Implement a single Vue instance injection mode:** reduce instance overhead in multi-task scenarios while allowing users to choose between multi-instance and single-instance modes.
 
 

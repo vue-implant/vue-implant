@@ -1,4 +1,4 @@
-# vue-implant 
+﻿# vue-implant 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -75,6 +75,7 @@ type InjectionConfig = {
 	alive?: boolean;
 	scope?: 'local' | 'global';
 	timeout?: number;
+	logger?: ILogger;
 };
 ```
 
@@ -83,6 +84,7 @@ type InjectionConfig = {
 | `alive` | `boolean` | 是否启用全局重注入机制。 | `false` |
 | `scope` | `'local' \| 'global'` | `local` 将监听器绑定在目标元素父节点；`global` 挂载到 `body`，在局部 DOM 重建时监听仍可持续。 | `'local'` |
 | `timeout` | `number` | 初始注入与重注入的超时阈值（毫秒）。不建议显式设置为 `undefined`。 | `5000` |
+| `logger` | `ILogger` | 自定义日志实现；未传入时使用内置 logger。 | 内置 logger |
 
 ### `Injector.run(): void`
 
@@ -197,11 +199,32 @@ injector.usePlugins(pinia, analyticsPlugin);
 面向 Pinia 场景保留的兼容别名。它仍然可用，内部会把 Pinia 作为共享插件注册。
 
 > [!NOTE]
-> 新代码建议优先使用 `use()` / `usePlugins()`。`setPinia()` 与 `getPinia()` 在 `1.x` 中仍保留兼容。
+> 新版本建议优先使用 `use()` / `usePlugins()`。`setPinia()` 与 `getPinia()` 在 `1.x` 中仍保留兼容。
 
 ### `Injector.getPinia(): Plugin | undefined`
 
 返回此前通过 `setPinia()` 设置的 Pinia 实例。
+
+### 日志
+
+`vue-implant` 现在会通过统一的 logger 输出内部运行日志，不再在各个模块里直接调用`console`。
+
+- 默认日志格式：`[Vue Implant][LEVEL][ISO_TIMESTAMP] message`
+
+**最小示例：**
+
+```ts
+import { Injector, type ILogger } from 'vue-implant';
+
+const logger: ILogger = {
+	info: (message, ...args) => console.info(`[我的项目] ${message}`, ...args),
+	warn: (message, ...args) => console.warn(`[我的项目] ${message}`, ...args),
+	error: (message, ...args) => console.error(`[我的项目] ${message}`, ...args),
+	debug: (message, ...args) => console.debug(`[我的项目] ${message}`, ...args)
+};
+
+const injector = new Injector({ logger });
+```
 
 ### `Injector.enableAlive(taskId: string): void`
 
@@ -407,7 +430,8 @@ injector.controlListener(taskId, Action.CLOSE);
 
 ## 路线图 🛣️
 
-- [ ] **重构解耦注入器逻辑：**将注入流程拆分为更小、职责更单一的模块。
+- [x] **重构解耦注入器逻辑：**将注入流程拆分为更小、职责更单一的模块。
+- [x] **实现简单的日志系统:**   替代模块内部的多次`console`调用,统一由内置或接入外部日志模块进行日志输出
 - [ ] **实现单 Vue 实例注入模式：**降低多任务场景下的实例开销，并支持与多实例模式按需选择。
 
 
