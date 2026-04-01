@@ -96,19 +96,19 @@ export class Injector {
 	}
 
 	public reset(taskId: string): void {
-		this.taskContext.reset(taskId);
+		this.taskLifeCycle.reset(taskId);
 	}
 
 	public resetAll(): void {
-		this.taskContext.resetAll();
+		this.taskLifeCycle.resetAll();
 	}
 
 	public destroy(taskId: string): void {
-		this.taskContext.destroy(taskId);
+		this.taskLifeCycle.destroy(taskId);
 	}
 
 	public destroyAll(): void {
-		this.taskContext.destroyAll();
+		this.taskLifeCycle.destroyAll();
 	}
 	// TODO: add config option to enable flush sync or pre
 	public bindListenerSignal(taskId: string, source: WatchSource<boolean>): boolean {
