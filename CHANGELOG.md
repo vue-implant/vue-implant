@@ -18,7 +18,7 @@
 
 - Relax the versions of vue and pinia
 
-## [1.1.0] - 2026-03-21
+## [1.1.0] - 2026-04-02
 
 - **refactor/modularize:** Injector core and decompose into specialized task modules by @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/15
 - **feat(injector):** support shared Vue plugins and unified plugin management by @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/16
