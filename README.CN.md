@@ -1,17 +1,39 @@
-﻿# vue-implant 
+﻿<p align="center">
+  <img width="150" src="./demo/public/vue-implant-icon.png" alt="Addfox">
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<h1 align="center">Vue-implant</h1>
+<p align="center">基于vue组件的轻量级注入框架</p>
 
-`vue-implant` 是一个面向油猴脚本、浏览器扩展等非受控页面环境的 Vue 组件注入框架。
+<div align="center">
+  <a href="https://github.com/FlowingInk/vue-implant/"><img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/FlowingInk/vue-implant?style=flat-square">
+</a>
+  <a href="https://www.npmjs.com/package/vue-implant"><img alt="NPM Version" src="https://img.shields.io/npm/v/vue-implant">
+</a>
+  <a href="https://www.npmjs.com/package/vue-implant"><img alt="NPM Downloads" src="https://img.shields.io/npm/dw/vue-implant">
+</a>
+    <a href="./LICENSE"><img alt="NPM Downloads" src="https://img.shields.io/badge/License-MIT-yellow.svg">
+</a>
+</div>
+<div align="center">
+  <a href="./README.md">English</a> | 中文
+</div>
 
-它提供了组件生命周期管理、DOM 等待与目标检测、重注入能力，帮助你在不频繁操作原生 DOM API 的前提下，稳定改造第三方网页。
+---
 
-适用于页面结构不稳定、异步渲染频繁、需要长期运行的注入场景。
+
+
+`vue-implant` 是一个主要面向油猴脚本开发场景的 Vue 组件注入框架。
+
+它能够在琐碎的油猴开发当中把**注入**这一操作统合起来，告别繁琐的底层**DOM**操作。同时还提供了一套声明式的注入机制，助力开发者构建高性能、易维护的脚本应用。
+
+推荐配合 [vite-plugin-monkey](https://github.com/lisonge/vite-plugin-monkey) 使用。将 `vue-implant` 的组件注入能力与 Vite 的现代构建优势相结合，带给你前所未有的**油猴开发全家桶**体验。
 
 ## 目录 📚
 
 - [演示](#演示)
 - [安装](#安装)
+- [最佳实践](#最佳实践)
 - [快速开始](#快速开始)
 - [兼容性](#兼容性)
 - [API](#api)
@@ -41,6 +63,15 @@ pnpm add vue-implant
 ```bash
 yarn add vue-implant
 ```
+
+## 最佳实践 ✅
+
+在油猴项目中，推荐组合：`vite-plugin-monkey + vue-implant`。
+
+- `vite-plugin-monkey`：处理脚本构建、元信息、开发调试与发布流程。
+- `vue-implant`：处理复杂页面中的组件挂载、目标等待、重注入与任务生命周期。
+
+这个组合可以让你把工程化能力和页面注入能力解耦：前者专注“如何构建油猴脚本”，后者专注“如何稳定改造目标网页”。
 
 ## 快速开始 ⚡
 

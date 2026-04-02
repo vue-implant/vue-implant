@@ -1,7 +1,7 @@
 {
   "name": "vue-implant",
   "version": "1.0.1",
-  "description": "A Vue 3 component injection framework for userscripts and browser extension environments.",
+  "description": "A Vue 3 component injection framework for userscripts",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -19,8 +19,9 @@
     "component-injection",
     "userscript",
     "tampermonkey",
-    "browser-extension",
-    "dom"
+    "greasemonkey",
+    "dom",
+    "typescript"
   ],
   "files": [
     "dist"

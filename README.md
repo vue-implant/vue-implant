@@ -1,19 +1,38 @@
-# vue-implant 
+<p align="center">
+  <img width="150" src="./demo/public/vue-implant-icon.png" alt="Addfox">
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<h1 align="center">Vue-implant</h1>
+<p align="center">A lightweight Vue component injection framework</p>
 
-[🇨🇳 中文文档](README.CN.md)
+<div align="center">
+  <a href="https://github.com/FlowingInk/vue-implant/"><img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/FlowingInk/vue-implant?style=flat-square">
+</a>
+  <a href="https://www.npmjs.com/package/vue-implant"><img alt="NPM Version" src="https://img.shields.io/npm/v/vue-implant">
+</a>
+  <a href="https://www.npmjs.com/package/vue-implant"><img alt="NPM Downloads" src="https://img.shields.io/npm/dw/vue-implant">
+</a>
+<a href="./LICENSE"><img alt="NPM Downloads" src="https://img.shields.io/badge/License-MIT-yellow.svg">
+</a>
+</div>
+<div align="center">
+   English | <a href="./README.CN.md">中文</a>
+</div>
 
-`vue-implant` is a Vue component injection framework designed for uncontrolled page environments such as userscripts and browser extensions.
+---
 
-It provides component lifecycle management, DOM waiting and target detection, and re-injection capabilities, helping you reliably enhance third-party pages without frequently dealing with complex native DOM APIs.
 
-It is suitable for scenarios where page structures are unstable, async rendering is frequent, and long-running injection is required.
 
+`vue-implant` is a Vue component injection framework primarily designed for Greasemonkey script development scenarios.
+
+It streamlines component injection in Userscript development, eliminating tedious low-level DOM manipulations. By providing a declarative injection mechanism, it empowers developers to build high-performance, maintainable script applications with ease.
+
+We highly recommend using  [vite-plugin-monkey](https://github.com/lisonge/vite-plugin-monkey) in tandem. By bridging `vue-implant`'s component injection with Vite's modern build pipeline, you can enjoy a seamless, high-performance Userscript development workflow.
 ## Table of Contents 📚
 
 - [Demo](#demo)
 - [Installation](#installation)
+- [Best Practice](#best-practice)
 - [Quick Start](#quick-start)
 - [Compatibility](#compatibility)
 - [API](#api)
@@ -43,6 +62,15 @@ pnpm add vue-implant
 ```bash
 yarn add vue-implant
 ```
+
+## Best Practice ✅
+
+For Greasemonkey/TemperMonkey projects, the recommended stack is: `vite-plugin-monkey + vue-implant`.
+
+- `vite-plugin-monkey`: handles userscript build pipeline, metadata, local development, and release flow.
+- `vue-implant`: handles component mounting, DOM target waiting, re-injection, and task lifecycle on dynamic pages.
+
+This pairing keeps responsibilities clear: one tool focuses on userscript engineering, the other focuses on reliable page enhancement.
 
 ## Quick Start ⚡
 
