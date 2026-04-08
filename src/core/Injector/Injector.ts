@@ -93,7 +93,6 @@ export class Injector {
 	public getLogger(): ILogger {
 		return this.logger;
 	}
-	j;
 
 	public use<T extends Plugin>(plugin: T): this {
 		this.taskContext.use(plugin);

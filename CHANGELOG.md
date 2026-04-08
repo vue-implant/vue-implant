@@ -26,3 +26,21 @@
 - **refactor/Split global types:** Split global types into file of different module @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/18
 - **fix/lifecycle-routing-leak:** Fix the vulnerability where Injector bypasses TaskLifeCycle and directly calls the internal lifecycle, ensuring state is controlled.  @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/19
 - **chore/docs:** Refine README and add best practices by @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/20
+
+
+## [1.2.0] - 2026-04-09
+
+### ✨ Features
+
+- **feat(core):** integrate `ObserverHub` and observability hooks across task lifecycle, and expose observer-related APIs by @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/21
+- **feat(logger):** add log level control and expose `Injector.getLogger()` by @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/22
+
+### 🛠 Fixes
+
+- **fix(logger):** switch to threshold-based level filtering (`debug < info < warn < error`) instead of exact-level matching
+- **fix(injector):** ensure default `ObserverHub` reuses the injector logger instance for consistent logger DI behavior
+
+### 📚 Tests & Docs
+
+- add `ObserverHub` unit tests and extend task/injector/watcher tests around observability events
+- update README and README.CN with observability hooks and logger usage examples
