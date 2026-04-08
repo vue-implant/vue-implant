@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
+import { ObserverHub } from '../src/core/hooks/ObservabilityHook/ObserverHub';
 import { TaskContext } from '../src/core/task/TaskContext';
 import { TaskLifeCycle } from '../src/core/task/TaskLifeCycle';
 import type { Task } from '../src/core/task/types';
@@ -505,5 +506,54 @@ describe('TaskLifeCycle', () => {
 		expect(disableSpy).toHaveBeenCalledTimes(1);
 		expect(disableSpy).toHaveBeenCalledWith('alive-reset-all');
 		expect(resetAllSpy).toHaveBeenCalledOnce();
+	});
+
+	it('should emit alive and task lifecycle events', async () => {
+		const observer = new ObserverHub();
+		const events: string[] = [];
+		observer.onAny((event) => {
+			events.push(event.name);
+		});
+
+		const lifecycleWithObserver = new TaskLifeCycle(taskContext, onTargetReady, {
+			alive: false,
+			scope: 'local',
+			timeout: 5000,
+			observer
+		});
+
+		const host = document.createElement('div');
+		host.id = 'obs-life-host';
+		document.body.appendChild(host);
+		const appRoot = document.createElement('div');
+		host.appendChild(appRoot);
+
+		taskContext.set('obs-life-task', {
+			taskId: 'obs-life-task',
+			componentName: 'ObsLifeComp',
+			componentInjectAt: '#obs-life-host',
+			component: { name: 'ObsLifeComp' },
+			app: { unmount: vi.fn() } as unknown as Task['app'],
+			appRoot,
+			alive: false,
+			isObserver: false,
+			aliveEpoch: 0,
+			scope: 'local'
+		});
+
+		vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(() => {});
+
+		lifecycleWithObserver.enableAlive('obs-life-task');
+		await nextTick();
+		lifecycleWithObserver.disableAlive('obs-life-task');
+		lifecycleWithObserver.reset('obs-life-task');
+		lifecycleWithObserver.destroy('obs-life-task');
+
+		expect(events).toContain('alive:enable');
+		expect(events).toContain('alive:observeStart');
+		expect(events).toContain('alive:disable');
+		expect(events).toContain('alive:observeStop');
+		expect(events).toContain('task:reset');
+		expect(events).toContain('task:destroy');
 	});
 });

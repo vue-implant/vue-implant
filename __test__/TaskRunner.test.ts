@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick, ref, type WatchHandle } from 'vue';
-import { Action } from '../src/core/Injector.types';
+import { Action } from '../src/core/Injector/types';
 import { TaskContext } from '../src/core/task/TaskContext';
 import { TaskRunner } from '../src/core/task/TaskRunner';
 import type { Task } from '../src/core/task/types';
@@ -42,10 +42,13 @@ describe('TaskRunner', () => {
 			'#app',
 			expect.any(Function),
 			document,
-			{
+			expect.objectContaining({
 				once: true
-			},
-			expect.anything()
+			}),
+			expect.objectContaining({
+				logger: expect.anything(),
+				emit: expect.any(Function)
+			})
 		);
 		expect(taskContext.getTaskStatus('task-a')).toBe('pending');
 	});
@@ -625,7 +628,10 @@ describe('TaskRunner', () => {
 				once: true,
 				timeout: 5000
 			},
-			expect.anything()
+			expect.objectContaining({
+				logger: expect.anything(),
+				emit: expect.any(Function)
+			})
 		);
 	});
 });

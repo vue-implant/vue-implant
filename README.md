@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="150" src="./demo/public/vue-implant-icon.png" alt="Addfox">
+	<img width="150" src="./demo/assets/vue-implant-icon.png">
 </p>
 
 <h1 align="center">Vue-implant</h1>
@@ -106,6 +106,7 @@ type InjectionConfig = {
 	scope?: 'local' | 'global';
 	timeout?: number;
 	logger?: ILogger;
+	observer?: ObserverHub;
 };
 ```
 
@@ -115,6 +116,7 @@ type InjectionConfig = {
 | `scope` | `'local' \| 'global'` | `local` binds listeners to the target element's parent; `global` mounts listeners to `body`, so listeners can remain active when local DOM is rebuilt. | `'local'` |
 | `timeout` | `number` | Timeout threshold (ms) for initial injection and re-injection. Setting it explicitly to `undefined` is not recommended. | `5000` |
 | `logger` | `ILogger` | Custom logger implementation. When omitted, the built-in logger is used. | built-in logger |
+| `observer` | `ObserverHub` | Optional observability hub for subscribing runtime events. | `new ObserverHub()` |
 
 ### `Injector.run(): void`
 
@@ -235,6 +237,10 @@ Legacy compatibility alias for Pinia-based setups. It still works and internally
 
 Returns the Pinia instance previously set through `setPinia()`.
 
+### `Injector.getObserver(): ObserverHub`
+
+Returns the `ObserverHub` instance held by the current injector, so you can subscribe/unsubscribe observability events directly.
+
 ### Logging
 
 `vue-implant` writes internal runtime logs through a unified logger instead of directly use `console` inside each module.
@@ -255,6 +261,42 @@ const logger: ILogger = {
 
 const injector = new Injector({ logger });
 ```
+
+### Observability Hooks (`ObserverHub`)
+
+`vue-implant` supports subscribing to key lifecycle events through `ObserverHub`, which is useful for monitoring, analytics, and debug logging.
+
+**Minimal example:**
+
+```ts
+import { Injector, ObserverHub } from 'vue-implant';
+
+const observer = new ObserverHub();
+const injector = new Injector({ observer });
+
+const offAny = observer.onAny((event) => {
+	console.log('[observe]', event.name, event.taskId, event.injectAt, event.status);
+});
+
+const offFail = observer.on('inject:fail', (event) => {
+	console.error('inject failed:', event.taskId, event.error);
+});
+
+injector.run();
+
+offFail();
+offAny();
+```
+
+Common events:
+
+- register: `register:start` / `register:success` / `register:duplicate` / `register:error`
+- run: `run:start` / `run:taskScheduled` / `run:taskSkipped`
+- injection: `target:ready` / `inject:start` / `inject:success` / `inject:fail`
+- listener: `listener:open` / `listener:close` / `listener:attachFail`
+- lifecycle: `alive:enable` / `alive:disable` / `alive:observeStart` / `alive:observeStop` / `task:reset` / `task:destroy`
+- resources: `resource:watcherReleased` / `resource:listenerReleased` / `resource:componentUnmounted`
+- DOM watcher: `dom:readyFound` / `dom:readyTimeout` / `dom:removed` / `dom:restored`
 
 ### `Injector.enableAlive(taskId: string): void`
 

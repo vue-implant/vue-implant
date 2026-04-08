@@ -1,8 +1,9 @@
 import { createPinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
-import { Injector } from '../src/core/Injector';
-import { Action } from '../src/core/Injector.types';
+import { ObserverHub } from '../src/core/hooks/ObservabilityHook/ObserverHub';
+import { Injector } from '../src/core/Injector/Injector';
+import { Action } from '../src/core/Injector/types';
 import { TaskContext } from '../src/core/task/TaskContext';
 import type { TaskLifeCycle } from '../src/core/task/TaskLifeCycle';
 import type { TaskRegister } from '../src/core/task/TaskRegister';
@@ -109,7 +110,10 @@ describe('Injector', () => {
 				once: true,
 				timeout: 10000
 			},
-			expect.anything()
+			expect.objectContaining({
+				logger: expect.anything(),
+				emit: expect.any(Function)
+			})
 		);
 	});
 
@@ -133,7 +137,10 @@ describe('Injector', () => {
 				once: true,
 				timeout: 5000
 			},
-			expect.anything()
+			expect.objectContaining({
+				logger: expect.anything(),
+				emit: expect.any(Function)
+			})
 		);
 	});
 
@@ -196,5 +203,31 @@ describe('Injector', () => {
 		expect(context?.taskStatus).toBe('active');
 		expect(context?.app).toBeDefined();
 		expect(context?.appRoot?.parentElement).toBe(host);
+	});
+
+	it('should expose ObserverHub and receive integration events', () => {
+		const observer = new ObserverHub();
+		const observedInjector = new Injector({ observer });
+		const events: string[] = [];
+		observer.onAny((event) => {
+			events.push(event.name);
+		});
+
+		const host = document.createElement('div');
+		host.id = 'obs-smoke';
+		document.body.appendChild(host);
+
+		observedInjector.register('#obs-smoke', {
+			name: 'ObservedComp',
+			render: () => null
+		});
+		observedInjector.run();
+
+		expect(observedInjector.getObserver()).toBe(observer);
+		expect(events).toContain('register:start');
+		expect(events).toContain('register:success');
+		expect(events).toContain('run:start');
+		expect(events).toContain('target:ready');
+		expect(events).toContain('inject:success');
 	});
 });

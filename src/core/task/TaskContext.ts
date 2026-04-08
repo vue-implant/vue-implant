@@ -1,4 +1,6 @@
 import type { Plugin } from 'vue';
+import { noopObserveEmitter } from '../hooks/ObservabilityHook/createObserveEmitter';
+import type { ObserveEmitter } from '../hooks/ObservabilityHook/type';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
 import type { Task, TaskErrorMessage, TaskRecord } from './types';
@@ -14,8 +16,11 @@ import type { Task, TaskErrorMessage, TaskRecord } from './types';
 export class TaskContext {
 	private readonly logger: ILogger;
 
-	constructor(logger: ILogger = new Logger()) {
+	private readonly emit: ObserveEmitter;
+
+	constructor(emit: ObserveEmitter = noopObserveEmitter, logger: ILogger = new Logger()) {
 		this.logger = logger;
+		this.emit = emit;
 	}
 
 	/**
@@ -242,6 +247,11 @@ export class TaskContext {
 				context.app.unmount();
 				context.app = undefined;
 				context.instance = undefined;
+				this.emit('resource:componentUnmounted', {
+					taskId: id,
+					injectAt: context.componentInjectAt,
+					status: context.taskStatus
+				});
 			} catch (error) {
 				this.logger.error(`Failed to unmount component for task "${id}":`, error);
 			}
@@ -297,6 +307,11 @@ export class TaskContext {
 		context.callback = undefined;
 		context.withEvent = false;
 		context.activitySignal = undefined;
+		this.emit('resource:listenerReleased', {
+			taskId: id,
+			injectAt: context.componentInjectAt,
+			status: context.taskStatus
+		});
 	}
 
 	/**
@@ -311,6 +326,11 @@ export class TaskContext {
 				context.watcher();
 				context.watcher = undefined;
 				context.watchSource = undefined;
+				this.emit('resource:watcherReleased', {
+					taskId: id,
+					injectAt: context.componentInjectAt,
+					status: context.taskStatus
+				});
 			} catch (error) {
 				this.logger.error(`Failed to stop watcher for task "${id}":`, error);
 			}

@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ObserveEmitter, ObserveEventName } from '../src/core/hooks/ObservabilityHook/type';
 import { DOMWatcher } from '../src/core/watcher/DomWatcher';
 import type { InjectCallback } from '../src/core/watcher/types';
 
@@ -263,14 +264,77 @@ describe('DOMWatcher', () => {
 			const el = document.createElement('div');
 			el.id = 'race';
 			document.body.appendChild(el);
-
-			DOMWatcher.onDomReady('#race', cb, document, { once: true, timeout: 1000 });
+			const emit = vi.fn<ObserveEmitter>();
+			DOMWatcher.onDomReady(
+				'#race',
+				cb,
+				document,
+				{ once: true, timeout: 1000 },
+				{ logger: console, emit }
+			);
 
 			// Wait well past timeout
 			await new Promise((r) => setTimeout(r, 50));
 
 			// Should only have been called once (from checkExistingElement)
 			expect(cb).toHaveBeenCalledOnce();
+			expect(emit).toHaveBeenCalledOnce();
+		});
+
+		it('should emit dom:* observability events', async () => {
+			vi.useRealTimers();
+			const events: ObserveEventName[] = [];
+			const emit = vi.fn((name: ObserveEventName) => {
+				events.push(name);
+			});
+
+			DOMWatcher.onDomReady(
+				'#obs-dom-found',
+				() => {},
+				document,
+				{ once: true, timeout: 1000 },
+				{ emit, logger: console }
+			);
+
+			const foundEl = document.createElement('div');
+			foundEl.id = 'obs-dom-found';
+			document.body.appendChild(foundEl);
+			await new Promise((r) => setTimeout(r, 0));
+
+			DOMWatcher.onDomReady(
+				'#obs-dom-timeout',
+				() => {},
+				document,
+				{ once: false, timeout: 5 },
+				{ emit, logger: console }
+			);
+			await new Promise((r) => setTimeout(r, 20));
+
+			const aliveEl = document.createElement('div');
+			aliveEl.id = 'obs-dom-alive';
+			document.body.appendChild(aliveEl);
+
+			DOMWatcher.onDomAlive(
+				aliveEl,
+				'#obs-dom-alive',
+				() => {},
+				() => {},
+				document,
+				{ once: true, timeout: 1000 },
+				{ emit, logger: console }
+			);
+
+			document.body.removeChild(aliveEl);
+			await new Promise((r) => setTimeout(r, 0));
+			const restoredEl = document.createElement('div');
+			restoredEl.id = 'obs-dom-alive';
+			document.body.appendChild(restoredEl);
+			await new Promise((r) => setTimeout(r, 0));
+
+			expect(events).toContain('dom:readyFound');
+			expect(events).toContain('dom:readyTimeout');
+			expect(events).toContain('dom:removed');
+			expect(events).toContain('dom:restored');
 		});
 	});
 });

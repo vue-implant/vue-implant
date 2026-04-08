@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
+import { ObserverHub } from '../src/core/hooks/ObservabilityHook/ObserverHub';
 import { TaskContext } from '../src/core/task/TaskContext';
 import { TaskRegister } from '../src/core/task/TaskRegister';
 
@@ -106,5 +107,49 @@ describe('TaskRegister', () => {
 		expect(second).toEqual(first);
 		expect(taskContext.taskRecords).toHaveLength(1);
 		expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('already registered'));
+	});
+
+	it('should emit register lifecycle events', () => {
+		const observer = new ObserverHub();
+		const registerWithObserver = new TaskRegister(taskContext, {
+			alive: false,
+			scope: 'local',
+			timeout: 5000,
+			observer
+		});
+		const callback = vi.fn();
+		const events: string[] = [];
+		observer.onAny((event) => {
+			events.push(event.name);
+		});
+
+		registerWithObserver.register('#obs', { name: 'ObsComp' });
+		registerWithObserver.register('#obs', { name: 'ObsComp' });
+		registerWithObserver.registerListener('#btn-obs', 'click', callback);
+
+		expect(events).toContain('register:start');
+		expect(events).toContain('register:success');
+		expect(events).toContain('register:duplicate');
+	});
+	it('should emit register lifecycle events of error', () => {
+		const observer = new ObserverHub();
+		const registerWithObserver = new TaskRegister(taskContext, {
+			alive: false,
+			scope: 'local',
+			timeout: 5000,
+			observer
+		});
+
+		vi.spyOn(taskContext, 'set').mockImplementation((_k, _v) => {
+			throw new Error('set error');
+		});
+
+		const events: string[] = [];
+		observer.onAny((event) => {
+			events.push(event.name);
+		});
+
+		registerWithObserver.register('#obs', { name: 'ObsComp' });
+		expect(events).toContain('register:error');
 	});
 });

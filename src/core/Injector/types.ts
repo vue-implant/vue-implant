@@ -1,5 +1,6 @@
 import type { Ref } from 'vue';
-import type { ILogger } from './logger/types';
+import type { ObserverHub } from '../hooks/ObservabilityHook/ObserverHub';
+import type { ILogger } from '../logger/types';
 
 export enum Action {
 	OPEN = 'OPEN',
@@ -25,4 +26,5 @@ export type InjectionConfig = {
 	scope?: 'local' | 'global';
 	timeout?: number;
 	logger?: ILogger;
+	observer?: ObserverHub;
 };

@@ -1,7 +1,9 @@
 import type { App, ComponentPublicInstance, Plugin, WatchHandle, WatchSource } from 'vue';
 import { createApp, nextTick, watch } from 'vue';
 import { UUID } from '../../util/uuid';
-import { Action, type ActionEvent, type InjectionConfig } from '../Injector.types';
+import { createObserveEmitter } from '../hooks/ObservabilityHook/createObserveEmitter';
+import type { ObserveEmitter } from '../hooks/ObservabilityHook/type';
+import { Action, type ActionEvent, type InjectionConfig } from '../Injector/types';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
 import { DOMWatcher } from '../watcher/DomWatcher';
@@ -12,14 +14,21 @@ export class TaskRunner {
 	private readonly taskContext: TaskContext;
 	private readonly injectConfig: InjectionConfig;
 	private readonly logger: ILogger;
+	private readonly emit: ObserveEmitter;
 
 	constructor(taskContext: TaskContext, injectConfig: InjectionConfig, logger?: ILogger) {
 		this.taskContext = taskContext;
 		this.injectConfig = injectConfig;
 		this.logger = logger ?? injectConfig.logger ?? new Logger();
+		this.emit = createObserveEmitter(this.injectConfig.observer);
 	}
 
 	public run(): void {
+		this.emit('run:start', {
+			meta: {
+				totalTasks: this.taskContext.taskRecords.length
+			}
+		});
 		if (this.taskContext.taskRecords.length === 0) {
 			throw new Error('No registered tasks found, call register() before run()');
 		}
@@ -30,7 +39,14 @@ export class TaskRunner {
 			const task: Task | undefined = this.taskContext.get(id);
 
 			if (!task || !status) return;
-			if (status === 'active' || status === 'pending') return;
+			if (status === 'active' || status === 'pending') {
+				this.emit('run:taskSkipped', {
+					taskId: id,
+					injectAt,
+					status
+				});
+				return;
+			}
 
 			DOMWatcher.onDomReady(
 				injectAt,
@@ -40,16 +56,27 @@ export class TaskRunner {
 					once: true,
 					timeout: task.timeout
 				},
-				this.logger
+				{
+					logger: this.logger,
+					emit: this.emit
+				}
 			);
 			if (this.taskContext.getTaskStatus(id) !== 'active') {
 				// when the target element is exist, will sync call the func ,so we do not set to pending
 				this.taskContext.setTaskStatus(id, 'pending');
+				this.emit('run:taskScheduled', {
+					taskId: id,
+					injectAt,
+					status: 'pending'
+				});
 			}
 		});
 	}
 
 	public onTargetReady(targetElement: HTMLElement, taskId: string): void {
+		this.emit('target:ready', {
+			taskId
+		});
 		const context = this.taskContext.get(taskId);
 		if (!context) {
 			this.logger.error(`Task "${taskId}" not found, unable to proceed with injection`);
@@ -62,11 +89,24 @@ export class TaskRunner {
 
 		// Mount component
 		if (context.component) {
+			this.emit('inject:start', {
+				taskId,
+				injectAt: context.componentInjectAt
+			});
 			const result: boolean = this.injectComponent(targetElement, taskId);
 			if (!result) {
 				context.taskStatus = 'idle';
+				this.emit('inject:fail', {
+					taskId,
+					injectAt: context.componentInjectAt,
+					status: 'idle'
+				});
 				return;
 			}
+			this.emit('inject:success', {
+				taskId,
+				injectAt: context.componentInjectAt
+			});
 		}
 
 		// If event binding is configured, bind the event
@@ -148,10 +188,20 @@ export class TaskRunner {
 
 				if (newController) {
 					context.controller = newController;
+					this.emit('listener:open', {
+						taskId,
+						injectAt: context.listenAt,
+						status: context.taskStatus
+					});
 				} else {
 					this.logger.error(
 						`Failed to attach event "${context.event}" for task "${taskId}"`
 					);
+					this.emit('listener:attachFail', {
+						taskId,
+						injectAt: context.listenAt,
+						error: `Failed to attach event "${context.event}"`
+					});
 					return false;
 				}
 				break;
@@ -164,6 +214,11 @@ export class TaskRunner {
 				context.controller.abort(); // Abort event listener
 				context.controller = undefined;
 				this.logger.info(`Event "${context.event}" detached from task "${taskId}"`);
+				this.emit('listener:close', {
+					taskId,
+					injectAt: context.listenAt,
+					status: context.taskStatus
+				});
 				break;
 			}
 
@@ -202,7 +257,10 @@ export class TaskRunner {
 			},
 			document,
 			{ once: true, timeout: this.injectConfig.timeout },
-			this.logger
+			{
+				logger: this.logger,
+				emit: this.emit
+			}
 		);
 
 		return proxyController;
@@ -284,7 +342,10 @@ export class TaskRunner {
 							once: true,
 							timeout: this.injectConfig.timeout
 						},
-						this.logger
+						{
+							logger: this.logger,
+							emit: this.emit
+						}
 					);
 
 					// if changes happen during async setup,

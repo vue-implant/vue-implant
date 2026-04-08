@@ -1,7 +1,7 @@
 <script setup lang="ts">
 defineOptions({ name: 'DemoPage' })
 
-import { inject, onMounted, onUnmounted, provide, ref } from 'vue'
+import { onMounted, onUnmounted, provide, ref } from 'vue'
 import { Injector } from '../src'
 import { InjectedBadge, InjectedCounter, InjectedTooltip } from './injectedWidgets'
 import HeroBlock from './components/layout/HeroBlock.vue'

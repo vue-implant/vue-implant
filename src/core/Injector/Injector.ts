@@ -1,12 +1,15 @@
 import type { Component, Plugin, Ref, WatchSource } from 'vue';
-import type { ActionEvent, ComponentOptions, InjectionConfig } from './Injector.types';
-import { Logger } from './logger/Logger';
-import type { ILogger } from './logger/types';
-import { TaskContext } from './task/TaskContext';
-import { TaskLifeCycle } from './task/TaskLifeCycle';
-import { TaskRegister } from './task/TaskRegister';
-import { TaskRunner } from './task/TaskRunner';
-import type { ListenerRegisterResult, RegisterResult } from './task/types';
+import { createObserveEmitter } from '../hooks/ObservabilityHook/createObserveEmitter';
+import { ObserverHub } from '../hooks/ObservabilityHook/ObserverHub';
+import type { ObserveEmitter } from '../hooks/ObservabilityHook/type';
+import { Logger } from '../logger/Logger';
+import type { ILogger } from '../logger/types';
+import { TaskContext } from '../task/TaskContext';
+import { TaskLifeCycle } from '../task/TaskLifeCycle';
+import { TaskRegister } from '../task/TaskRegister';
+import { TaskRunner } from '../task/TaskRunner';
+import type { ListenerRegisterResult, RegisterResult } from '../task/types';
+import type { ActionEvent, ComponentOptions, InjectionConfig } from './types';
 
 export class Injector {
 	// Unified task context containing all component-related data
@@ -15,6 +18,7 @@ export class Injector {
 	private readonly taskRunner: TaskRunner;
 	private readonly taskLifeCycle: TaskLifeCycle;
 	private readonly logger: ILogger;
+	private readonly observer: ObserverHub;
 	private readonly injectConfig: InjectionConfig = {
 		alive: false,
 		scope: 'local',
@@ -23,8 +27,17 @@ export class Injector {
 
 	constructor(config: Partial<InjectionConfig> = {}) {
 		this.logger = config.logger ?? new Logger();
-		this.taskContext = new TaskContext(this.logger);
-		this.injectConfig = { ...this.injectConfig, ...config, logger: this.logger };
+		this.observer = config.observer ?? new ObserverHub();
+
+		const emitObserve: ObserveEmitter = createObserveEmitter(this.observer);
+		this.taskContext = new TaskContext(emitObserve, this.logger);
+
+		this.injectConfig = {
+			...this.injectConfig,
+			...config,
+			logger: this.logger,
+			observer: this.observer
+		};
 		this.taskRegister = new TaskRegister(this.taskContext, this.injectConfig, this.logger);
 		this.taskRunner = new TaskRunner(this.taskContext, this.injectConfig, this.logger);
 		this.taskLifeCycle = new TaskLifeCycle(
@@ -71,6 +84,10 @@ export class Injector {
 
 	public getContext(): TaskContext | undefined {
 		return this.taskContext;
+	}
+
+	public getObserver(): ObserverHub {
+		return this.observer;
 	}
 
 	public use<T extends Plugin>(plugin: T): this {

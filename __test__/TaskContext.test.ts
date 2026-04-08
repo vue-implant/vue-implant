@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { App, ComponentPublicInstance, Ref, WatchHandle } from 'vue';
+import { ObserverHub } from '../src/core/hooks/ObservabilityHook/ObserverHub';
 import { TaskContext } from '../src/core/task/TaskContext';
 import type { Task } from '../src/core/task/types';
 
@@ -689,6 +690,47 @@ describe('TaskContext', () => {
 
 		it('should not throw when context map is empty', () => {
 			expect(() => taskContext.resetAll()).not.toThrow();
+		});
+	});
+
+	describe('observability resource events', () => {
+		it('should emit resource release events from TaskContext', () => {
+			const observer = new ObserverHub();
+			const observed = new TaskContext((name, payload) => {
+				observer.emit({
+					name,
+					ts: Date.now(),
+					...(payload ?? {})
+				});
+			}, undefined);
+			const events: string[] = [];
+			observer.onAny((event) => {
+				events.push(event.name);
+			});
+
+			const watcher = vi.fn() as unknown as WatchHandle;
+			const abort = vi.fn();
+			const unmount = vi.fn();
+			observed.set('obs-task', {
+				taskId: 'obs-task',
+				componentName: 'ObsComp',
+				componentInjectAt: '#obs',
+				watcher,
+				withEvent: true,
+				listenAt: '#btn',
+				event: 'click',
+				callback: vi.fn(),
+				controller: { abort } as unknown as AbortController,
+				app: { unmount } as unknown as App<Element>
+			});
+
+			observed.releaseWatcher('obs-task');
+			observed.releaseListener('obs-task');
+			observed.releaseComponentInstance('obs-task');
+
+			expect(events).toContain('resource:watcherReleased');
+			expect(events).toContain('resource:listenerReleased');
+			expect(events).toContain('resource:componentUnmounted');
 		});
 	});
 });

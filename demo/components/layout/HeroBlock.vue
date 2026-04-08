@@ -9,7 +9,7 @@ const props = defineProps<{
 
 <template>
     <header class="hero">
-        <img src="../../public/vue-implant-icon.png" alt="vue-implant" width='120px' />
+        <img src="../../assets/vue-implant-icon.png" alt="vue-implant" width='120px' />
         <h1 class="hero-title">{{ props.title }}</h1>
         <span class="hero-desc">{{ props.description }}</span>
     </header>

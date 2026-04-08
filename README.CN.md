@@ -1,6 +1,7 @@
 ﻿<p align="center">
-  <img width="150" src="./demo/public/vue-implant-icon.png" alt="Addfox">
+  <img width="150" src="./demo/assets/vue-implant-icon.png">
 </p>
+
 
 <h1 align="center">Vue-implant</h1>
 <p align="center">基于vue组件的轻量级注入框架</p>
@@ -107,6 +108,7 @@ type InjectionConfig = {
 	scope?: 'local' | 'global';
 	timeout?: number;
 	logger?: ILogger;
+	observer?: ObserverHub;
 };
 ```
 
@@ -116,6 +118,7 @@ type InjectionConfig = {
 | `scope` | `'local' \| 'global'` | `local` 将监听器绑定在目标元素父节点；`global` 挂载到 `body`，在局部 DOM 重建时监听仍可持续。 | `'local'` |
 | `timeout` | `number` | 初始注入与重注入的超时阈值（毫秒）。不建议显式设置为 `undefined`。 | `5000` |
 | `logger` | `ILogger` | 自定义日志实现；未传入时使用内置 logger。 | 内置 logger |
+| `observer` | `ObserverHub` | 可选可观测中心，用于订阅运行时事件。 | `new ObserverHub()` |
 
 ### `Injector.run(): void`
 
@@ -236,6 +239,10 @@ injector.usePlugins(pinia, analyticsPlugin);
 
 返回此前通过 `setPinia()` 设置的 Pinia 实例。
 
+### `Injector.getObserver(): ObserverHub`
+
+返回当前注入器持有的 `ObserverHub` 实例，可用于注册/移除可观测事件监听。
+
 ### 日志
 
 `vue-implant` 现在会通过统一的 logger 输出内部运行日志，不再在各个模块里直接调用`console`。
@@ -256,6 +263,42 @@ const logger: ILogger = {
 
 const injector = new Injector({ logger });
 ```
+
+### 可观测钩子（ObserverHub）
+
+`vue-implant` 支持通过 `ObserverHub` 订阅关键生命周期事件，便于接入监控、埋点、调试日志。
+
+**最小示例：**
+
+```ts
+import { Injector, ObserverHub } from 'vue-implant';
+
+const observer = new ObserverHub();
+const injector = new Injector({ observer });
+
+const offAny = observer.onAny((event) => {
+	console.log('[observe]', event.name, event.taskId, event.injectAt, event.status);
+});
+
+const offFail = observer.on('inject:fail', (event) => {
+	console.error('inject failed:', event.taskId, event.error);
+});
+
+injector.run();
+
+offFail();
+offAny();
+```
+
+常用事件：
+
+- 注册：`register:start` / `register:success` / `register:duplicate` / `register:error`
+- 运行：`run:start` / `run:taskScheduled` / `run:taskSkipped`
+- 注入：`target:ready` / `inject:start` / `inject:success` / `inject:fail`
+- 监听器：`listener:open` / `listener:close` / `listener:attachFail`
+- 生命周期：`alive:enable` / `alive:disable` / `alive:observeStart` / `alive:observeStop` / `task:reset` / `task:destroy`
+- 资源释放：`resource:watcherReleased` / `resource:listenerReleased` / `resource:componentUnmounted`
+- DOM 观察：`dom:readyFound` / `dom:readyTimeout` / `dom:removed` / `dom:restored`
 
 ### `Injector.enableAlive(taskId: string): void`
 
