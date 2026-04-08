@@ -4,6 +4,7 @@ import { ref } from 'vue';
 import { ObserverHub } from '../src/core/hooks/ObservabilityHook/ObserverHub';
 import { Injector } from '../src/core/Injector/Injector';
 import { Action } from '../src/core/Injector/types';
+import { Logger } from '../src/core/logger/Logger';
 import { TaskContext } from '../src/core/task/TaskContext';
 import type { TaskLifeCycle } from '../src/core/task/TaskLifeCycle';
 import type { TaskRegister } from '../src/core/task/TaskRegister';
@@ -229,5 +230,10 @@ describe('Injector', () => {
 		expect(events).toContain('run:start');
 		expect(events).toContain('target:ready');
 		expect(events).toContain('inject:success');
+	});
+	it('should get the logger', () => {
+		const logger = new Logger();
+		const testInjector = new Injector({ logger });
+		expect(testInjector.getLogger()).toBe(logger);
 	});
 });

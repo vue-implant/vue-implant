@@ -27,7 +27,7 @@ export class Injector {
 
 	constructor(config: Partial<InjectionConfig> = {}) {
 		this.logger = config.logger ?? new Logger();
-		this.observer = config.observer ?? new ObserverHub();
+		this.observer = config.observer ?? new ObserverHub(this.logger);
 
 		const emitObserve: ObserveEmitter = createObserveEmitter(this.observer);
 		this.taskContext = new TaskContext(emitObserve, this.logger);
@@ -89,6 +89,11 @@ export class Injector {
 	public getObserver(): ObserverHub {
 		return this.observer;
 	}
+
+	public getLogger(): ILogger {
+		return this.logger;
+	}
+	j;
 
 	public use<T extends Plugin>(plugin: T): this {
 		this.taskContext.use(plugin);
