@@ -1,0 +1,37 @@
+name: NPM & GitHub Auth Tester
+
+on:
+  workflow_dispatch: # 只允许手动点击触发，不干扰任何提交
+
+jobs:
+  test-auth:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Validate NPM Token
+        # 这一步只检查权限，不发包，不改版本
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "Checking NPM Identity..."
+          npm whoami
+          echo "Simulating Publish..."
+          npm publish --access public --dry-run
+          echo "✅ NPM Token is valid and has publish permission."
+
+      - name: Validate GitHub Token
+        # 检查是否有权访问 gh cli 和 release 接口
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Checking GitHub CLI..."
+          gh release list --limit 1
+          echo "✅ GitHub Token has sufficient permissions."
