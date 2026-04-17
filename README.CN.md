@@ -109,6 +109,7 @@ type InjectionConfig = {
 	timeout?: number;
 	logger?: ILogger;
 	observer?: ObserverHub;
+	hooks?: LifecycleHookMap;
 };
 ```
 
@@ -119,6 +120,7 @@ type InjectionConfig = {
 | `timeout` | `number` | 初始注入与重注入的超时阈值（毫秒）。不建议显式设置为 `undefined`。 | `5000` |
 | `logger` | `ILogger` | 自定义日志实现；未传入时使用内置 logger。 | 内置 logger |
 | `observer` | `ObserverHub` | 可选可观测中心，用于订阅运行时事件。 | `new ObserverHub()` |
+| `hooks` | `LifecycleHookMap` | 可选全局生命周期钩子，在 Injector 创建时统一注册。 | `undefined` |
 
 ### `Injector.run(): void`
 
@@ -148,6 +150,7 @@ type InjectionConfig = {
 | `on.type` | yes | `string` | 事件类型。 |
 | `on.callback` | yes | `EventListener` | 事件回调。 |
 | `on.activitySignal` | no | `() => Ref<boolean>` | 外部控制监听开关的信号。 |
+| `hooks` | no | `LifecycleHookMap` | 组件级生命周期钩子（仅 `register` 组件任务支持）。 |
 
 返回值：
 
@@ -243,6 +246,30 @@ injector.usePlugins(pinia, analyticsPlugin);
 
 返回当前注入器持有的 `ObserverHub` 实例，可用于注册/移除可观测事件监听。
 
+### `Injector.on(event: ObserveEventName, hook: ObserveHook): () => void`
+
+注册某一个事件的全局观察钩子。
+
+### `Injector.onTask(taskId: string, event: ObserveEventName, hook: ObserveHook): () => void`
+
+注册任务级观察钩子，仅当 `event.taskId === taskId` 时触发。
+
+### `Injector.onAny(hook: ObserveHook): () => void`
+
+注册任意事件的全局观察钩子。
+
+### `Injector.off(event: ObserveEventName, hook?: ObserveHook): void`
+
+移除某个事件下的一个全局钩子，或移除该事件全部全局钩子。
+
+### `Injector.offTask(taskId: string, event?: ObserveEventName, hook?: ObserveHook): void`
+
+按任务、任务+事件、任务+事件+钩子维度移除任务级钩子。
+
+### `Injector.offAny(hook: ObserveHook): void`
+
+移除此前通过 `onAny` 注册的钩子。
+
 ### 日志
 
 `vue-implant` 现在会通过统一的 logger 输出内部运行日志，不再在各个模块里直接调用`console`。
@@ -264,9 +291,9 @@ const logger: ILogger = {
 const injector = new Injector({ logger });
 ```
 
-### 可观测钩子（ObserverHub）
+### 生命周期钩子（ObserverHub）
 
-`vue-implant` 支持通过 `ObserverHub` 订阅关键生命周期事件，便于接入监控、埋点、调试日志。
+`vue-implant` 支持通过 `ObserverHub` 订阅生命周期钩子，便于接入监控、埋点、调试日志。
 
 **最小示例：**
 
@@ -284,21 +311,95 @@ const offFail = observer.on('inject:fail', (event) => {
 	console.error('inject failed:', event.taskId, event.error);
 });
 
+const offTask = observer.onTask('MyComp@#app', 'task:afterReset', (event) => {
+	console.log('task reset completed:', event.taskId, event.preStatus, event.status);
+});
+
 injector.run();
 
 offFail();
 offAny();
+offTask();
 ```
 
-常用事件：
+也可以通过配置声明式注册：
+
+```ts
+const injector = new Injector({
+	hooks: {
+		'run:start': (event) => console.log('run start stats:', event.meta)
+	}
+});
+
+injector.register('#app', App, {
+	hooks: {
+		'task:afterDestroy': (event) => console.log('destroyed:', event.taskId)
+	}
+});
+```
+
+钩子作用域：
+
+- 全局钩子：在 `new Injector({ hooks })` 中配置，或通过 `injector.on(...)` / `injector.onAny(...)` 注册。
+- 组件级钩子：在 `injector.register(injectAt, component, { hooks })` 或`injector.onTask(taskId, event, hook)`中配置。
+- 当前组件级钩子仅支持 `register` 创建的组件任务，不支持 `registerListener`。
+
+生命周期事件载荷：
+
+| Event | Payload fields |
+| --- | --- |
+| `register:start` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName?`, `meta.listenerEvent?`, `meta.listenAt?`, `meta.alive?`, `meta.scope?`, `meta.timeout?`, `meta.withEvent?` |
+| `register:success` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName?`, `meta.listenerEvent?`, `meta.listenAt?`, `meta.alive?`, `meta.scope?`, `meta.timeout?`, `meta.withEvent?` |
+| `register:duplicate` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName?`, `meta.listenerEvent?` |
+| `register:error` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.componentName?`, `meta.listenerEvent?` |
+| `run:start` | `meta.totalTasks`, `meta.idleTasks`, `meta.pendingTasks`, `meta.activeTasks` |
+| `run:taskScheduled` | `taskId`, `kind`, `injectAt`, `status`, `preStatus`, `meta.timeout` |
+| `run:taskSkipped` | `taskId`, `kind`, `injectAt`, `status`, `meta.skipReason` |
+| `target:ready` | `taskId`, `kind`, `injectAt`, `status` |
+| `inject:start` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName`, `meta.alive`, `meta.scope`, `meta.withEvent` |
+| `inject:success` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName`, `meta.alive`, `meta.scope` |
+| `inject:fail` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.componentName` |
+| `listener:open` | `taskId`, `kind`, `injectAt`, `status`, `meta.listenerEvent`, `meta.listenAt` |
+| `listener:close` | `taskId`, `kind`, `injectAt`, `status`, `meta.listenerEvent`, `meta.listenAt` |
+| `listener:attachFail` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.listenerEvent`, `meta.listenAt` |
+| `alive:enable` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch` |
+| `alive:disable` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch` |
+| `alive:observeStart` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch`, `meta.observerMode` |
+| `alive:observeStop` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch`, `meta.observerMode` |
+| `task:statusChange` | `taskId`, `kind`, `injectAt`, `status`, `preStatus` |
+| `task:active` | `taskId`, `kind`, `injectAt`, `status`, `preStatus` |
+| `task:beforeReset` | `taskId`, `kind`, `injectAt`, `status` |
+| `task:reset` | `taskId`, `kind`, `injectAt`, `status` |
+| `task:afterReset` | `taskId`, `kind`, `injectAt`, `status`, `preStatus` |
+| `task:beforeDestroy` | `taskId`, `kind`, `injectAt`, `status` |
+| `task:destroy` | `taskId`, `kind`, `injectAt`, `status` |
+| `task:afterDestroy` | `taskId`, `kind`, `injectAt`, `preStatus` |
+| `resource:watcherReleased` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource` |
+| `resource:listenerReleased` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource`, `meta.listenerEvent?`, `meta.listenAt?` |
+| `resource:componentUnmounted` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource`, `meta.componentName` |
+| `dom:readyFound` | `injectAt`, `taskId`, `kind`, `durationMs`, `meta.root` |
+| `dom:readyTimeout` | `injectAt`, `taskId`, `kind`, `durationMs`, `meta.root` |
+| `dom:removed` | `injectAt`, `taskId`, `kind`, `meta.phase` |
+| `dom:restored` | `injectAt`, `taskId`, `kind`, `durationMs` |
+
+常用事件分组：
 
 - 注册：`register:start` / `register:success` / `register:duplicate` / `register:error`
-- 运行：`run:start` / `run:taskScheduled` / `run:taskSkipped`
-- 注入：`target:ready` / `inject:start` / `inject:success` / `inject:fail`
+- 运行：`run:start` / `run:taskScheduled` / `run:taskSkipped` / `target:ready`
+- 注入：`inject:start` / `inject:success` / `inject:fail`
 - 监听器：`listener:open` / `listener:close` / `listener:attachFail`
-- 生命周期：`alive:enable` / `alive:disable` / `alive:observeStart` / `alive:observeStop` / `task:reset` / `task:destroy`
+- alive：`alive:enable` / `alive:disable` / `alive:observeStart` / `alive:observeStop`
+- task：`task:statusChange` / `task:active` / `task:beforeReset` / `task:reset` / `task:afterReset` / `task:beforeDestroy` / `task:destroy` / `task:afterDestroy`
 - 资源释放：`resource:watcherReleased` / `resource:listenerReleased` / `resource:componentUnmounted`
 - DOM 观察：`dom:readyFound` / `dom:readyTimeout` / `dom:removed` / `dom:restored`
+
+事件载荷约定：
+
+- 大多数任务相关事件都提供规范化基础字段：`taskId`、`kind`、`injectAt`、`status`。
+- 状态迁移事件提供 `preStatus`（例如：`task:statusChange`、`task:active`、`task:afterReset`、`task:afterDestroy`）。
+- 耗时类事件提供 `durationMs`（例如：`dom:readyFound`、`dom:readyTimeout`、`dom:restored`）。
+- 事件专属信息放入 `meta`（例如：`run:start` 统计、`listener:*` 绑定信息、`alive:*` scope/epoch/mode）。
+- DOM watcher 事件由运行时工厂注入任务上下文，`DOMWatcher` 本身保持业务无关。
 
 ### `Injector.enableAlive(taskId: string): void`
 
