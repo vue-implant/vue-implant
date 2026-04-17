@@ -1,6 +1,6 @@
 /// <reference types="vitest/config" />
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ObserveEmitter, ObserveEventName } from '../src/core/hooks/ObservabilityHook/type';
+import type { ObserveEventName } from '../src/core/hooks/type';
 import { DOMWatcher } from '../src/core/watcher/DomWatcher';
 import type { InjectCallback } from '../src/core/watcher/types';
 
@@ -264,7 +264,7 @@ describe('DOMWatcher', () => {
 			const el = document.createElement('div');
 			el.id = 'race';
 			document.body.appendChild(el);
-			const emit = vi.fn<ObserveEmitter>();
+			const emit = vi.fn<(name: ObserveEventName) => void>();
 			DOMWatcher.onDomReady(
 				'#race',
 				cb,
@@ -284,7 +284,7 @@ describe('DOMWatcher', () => {
 		it('should emit dom:* observability events', async () => {
 			vi.useRealTimers();
 			const events: ObserveEventName[] = [];
-			const emit = vi.fn((name: ObserveEventName) => {
+			const emit = vi.fn<(name: ObserveEventName) => void>((name) => {
 				events.push(name);
 			});
 

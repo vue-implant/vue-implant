@@ -14,7 +14,7 @@ import DelayedInjectionCase from './scenarios/DelayedInjectionCase.vue'
 import EventBindingCase from './scenarios/EventBindingCase.vue'
 import PureListenerCase from './scenarios/PureListenerCase.vue'
 import SignalListenerCase from './scenarios/SignalListenerCase.vue'
-import type { RegisterResult } from '../src/core/task/types'
+import type { RegisterResult } from '../src/core/Task/types'
 
 const activitySignal = ref(true)
 const reinjectActive = ref(false)

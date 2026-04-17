@@ -1,14 +1,14 @@
 import { createPinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
-import { ObserverHub } from '../src/core/hooks/ObservabilityHook/ObserverHub';
+import { ObserverHub } from '../src/core/hooks/ObserverHub';
 import { Injector } from '../src/core/Injector/Injector';
 import { Action } from '../src/core/Injector/types';
 import { Logger } from '../src/core/logger/Logger';
-import { TaskContext } from '../src/core/task/TaskContext';
-import type { TaskLifeCycle } from '../src/core/task/TaskLifeCycle';
-import type { TaskRegister } from '../src/core/task/TaskRegister';
-import type { TaskRunner } from '../src/core/task/TaskRunner';
+import { TaskContext } from '../src/core/Task/TaskContext';
+import type { TaskLifeCycle } from '../src/core/Task/TaskLifeCycle';
+import type { TaskRegister } from '../src/core/Task/TaskRegister';
+import type { TaskRunner } from '../src/core/Task/TaskRunner';
 import { DOMWatcher } from '../src/core/watcher/DomWatcher';
 
 describe('Injector', () => {
@@ -230,6 +230,46 @@ describe('Injector', () => {
 		expect(events).toContain('run:start');
 		expect(events).toContain('target:ready');
 		expect(events).toContain('inject:success');
+		expect(events).toContain('task:active');
+	});
+
+	it('should register hooks from config and expose observer facade methods', () => {
+		const injectSuccessHook = vi.fn();
+		const afterDestroyHook = vi.fn();
+		const anyHook = vi.fn();
+		const taskHook = vi.fn();
+		const hookedInjector = new Injector({
+			hooks: {
+				'inject:success': injectSuccessHook,
+				'task:afterDestroy': [afterDestroyHook]
+			}
+		});
+
+		const offAny = hookedInjector.onAny(anyHook);
+		const offFail = hookedInjector.on('inject:fail', vi.fn());
+		hookedInjector.onTask('hooked-host-task', 'inject:success', taskHook);
+
+		const host = document.createElement('div');
+		host.id = 'hooked-host';
+		document.body.appendChild(host);
+
+		const { taskId } = hookedInjector.register('#hooked-host', {
+			name: 'HookedComp',
+			render: () => null
+		});
+
+		hookedInjector.offTask('hooked-host-task');
+		hookedInjector.onTask(taskId, 'inject:success', taskHook);
+
+		hookedInjector.run();
+		hookedInjector.destroy(taskId);
+		offAny();
+		offFail();
+
+		expect(injectSuccessHook).toHaveBeenCalledOnce();
+		expect(afterDestroyHook).toHaveBeenCalledOnce();
+		expect(anyHook).toHaveBeenCalled();
+		expect(taskHook).toHaveBeenCalledOnce();
 	});
 	it('should get the logger', () => {
 		const logger = new Logger();

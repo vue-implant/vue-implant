@@ -1,4 +1,4 @@
-import { noopObserveEmitter } from '../hooks/ObservabilityHook/createObserveEmitter';
+import { noopObserveEmitter } from '../hooks/util';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
 import type { DomWatcherRuntime, InjectCallback, ObserverOptions } from './types';
@@ -30,12 +30,7 @@ export function onDomReady(
 	};
 
 	const wrappedCallback = (el: HTMLElement, observer?: MutationObserver) => {
-		dowWatcherRuntime.emit('dom:readyFound', {
-			injectAt: selector,
-			meta: {
-				root: root instanceof Document ? 'document' : 'element'
-			}
-		});
+		dowWatcherRuntime.emit('dom:readyFound');
 		callback(el, observer);
 
 		// In once mode, disconnect immediately after finding the element
@@ -58,10 +53,7 @@ export function onDomReady(
 		setTimeout(() => {
 			if (isDisconnected) return;
 			disconnect();
-			dowWatcherRuntime.emit('dom:readyTimeout', {
-				injectAt: selector,
-				durationMs: options.timeout
-			});
+			dowWatcherRuntime.emit('dom:readyTimeout');
 			dowWatcherRuntime.logger.warn(
 				`Element "${selector}" not found within ${options.timeout}ms, observer disconnected`
 			);
@@ -92,18 +84,14 @@ export function onDomAlive(
 	const removalObserver = setupRemovalObserver(
 		target,
 		() => {
-			dowWatcherRuntime.emit('dom:removed', {
-				injectAt: selector
-			});
+			dowWatcherRuntime.emit('dom:removed');
 			onRemove();
 			if (!isObserver) return;
 			stopReadyObserver = onDomReady(
 				selector,
 				(newTarget) => {
 					if (!isObserver) return;
-					dowWatcherRuntime.emit('dom:restored', {
-						injectAt: selector
-					});
+					dowWatcherRuntime.emit('dom:restored');
 					onRestore(newTarget);
 				},
 				document,

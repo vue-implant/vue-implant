@@ -1,14 +1,18 @@
 import type { App, ComponentPublicInstance, Plugin, WatchHandle, WatchSource } from 'vue';
 import { createApp, nextTick, watch } from 'vue';
 import { UUID } from '../../util/uuid';
-import { createObserveEmitter } from '../hooks/ObservabilityHook/createObserveEmitter';
-import type { ObserveEmitter } from '../hooks/ObservabilityHook/type';
+import type { ObserveEmitter } from '../hooks/type';
 import { Action, type ActionEvent, type InjectionConfig } from '../Injector/types';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
+import { createDomObserveEmitFactory } from '../payload/createDomObserveEmitFactory';
+import { buildInjectObservePayload } from '../payload/buildInjectObservePayload';
+import { buildListenerObservePayload } from '../payload/buildListenerObservePayload';
+import { buildRunObservePayload } from '../payload/buildRunObservePayload';
 import { DOMWatcher } from '../watcher/DomWatcher';
 import type { TaskContext } from './TaskContext';
-import type { Task } from './types';
+import type { _InjectResult, Task, TaskListenerFeature } from './types';
+import { getTaskInjectAt, getTaskListener, isComponentTask } from './util';
 
 export class TaskRunner {
 	private readonly taskContext: TaskContext;
@@ -16,19 +20,36 @@ export class TaskRunner {
 	private readonly logger: ILogger;
 	private readonly emit: ObserveEmitter;
 
-	constructor(taskContext: TaskContext, injectConfig: InjectionConfig, logger?: ILogger) {
+	constructor(
+		taskContext: TaskContext,
+		injectConfig: InjectionConfig,
+		emitter: ObserveEmitter,
+		logger?: ILogger
+	) {
 		this.taskContext = taskContext;
 		this.injectConfig = injectConfig;
+		this.emit = emitter;
 		this.logger = logger ?? injectConfig.logger ?? new Logger();
-		this.emit = createObserveEmitter(this.injectConfig.observer);
 	}
 
 	public run(): void {
-		this.emit('run:start', {
-			meta: {
-				totalTasks: this.taskContext.taskRecords.length
+		const runStats = this.taskContext.taskRecords.reduce(
+			(acc, { taskId }) => {
+				const status = this.taskContext.getTaskStatus(taskId);
+				if (status === 'idle') acc.idleTasks += 1;
+				if (status === 'pending') acc.pendingTasks += 1;
+				if (status === 'active') acc.activeTasks += 1;
+				return acc;
+			},
+			{
+				totalTasks: this.taskContext.taskRecords.length,
+				idleTasks: 0,
+				pendingTasks: 0,
+				activeTasks: 0
 			}
-		});
+		);
+
+		this.emit('run:start', buildRunObservePayload('run:start', runStats));
 		if (this.taskContext.taskRecords.length === 0) {
 			throw new Error('No registered tasks found, call register() before run()');
 		}
@@ -40,11 +61,16 @@ export class TaskRunner {
 
 			if (!task || !status) return;
 			if (status === 'active' || status === 'pending') {
-				this.emit('run:taskSkipped', {
-					taskId: id,
-					injectAt,
-					status
-				});
+				this.emit(
+					'run:taskSkipped',
+					buildRunObservePayload('run:taskSkipped', {
+						taskId: id,
+						kind: task.kind,
+						injectAt,
+						status,
+						skipReason: status === 'active' ? 'already-active' : 'already-pending'
+					})
+				);
 				return;
 			}
 
@@ -58,73 +84,134 @@ export class TaskRunner {
 				},
 				{
 					logger: this.logger,
-					emit: this.emit
+					emit: createDomObserveEmitFactory({
+						emit: this.emit,
+						taskId: id,
+						kind: task.kind,
+						injectAt,
+						root: document
+					})
 				}
 			);
 			if (this.taskContext.getTaskStatus(id) !== 'active') {
 				// when the target element is exist, will sync call the func ,so we do not set to pending
 				this.taskContext.setTaskStatus(id, 'pending');
-				this.emit('run:taskScheduled', {
-					taskId: id,
-					injectAt,
-					status: 'pending'
-				});
+				this.emit(
+					'run:taskScheduled',
+					buildRunObservePayload('run:taskScheduled', {
+						taskId: id,
+						kind: task.kind,
+						injectAt,
+						status: 'pending',
+						preStatus: 'idle',
+						timeout: task.timeout
+					})
+				);
 			}
 		});
 	}
 
 	public onTargetReady(targetElement: HTMLElement, taskId: string): void {
-		this.emit('target:ready', {
-			taskId
-		});
 		const context = this.taskContext.get(taskId);
 		if (!context) {
 			this.logger.error(`Task "${taskId}" not found, unable to proceed with injection`);
 			return;
 		}
 
+		this.emit(
+			'target:ready',
+			buildRunObservePayload('target:ready', {
+				taskId,
+				kind: context.kind,
+				injectAt: getTaskInjectAt(context),
+				status: context.taskStatus
+			})
+		);
+
 		if (context.taskStatus === 'active') {
 			return;
 		}
+		const injectAt: string = getTaskInjectAt(context);
 
 		// Mount component
-		if (context.component) {
-			this.emit('inject:start', {
-				taskId,
-				injectAt: context.componentInjectAt
-			});
-			const result: boolean = this.injectComponent(targetElement, taskId);
-			if (!result) {
-				context.taskStatus = 'idle';
-				this.emit('inject:fail', {
+		if (isComponentTask(context)) {
+			this.emit(
+				'inject:start',
+				buildInjectObservePayload('inject:start', {
 					taskId,
+					kind: 'component',
 					injectAt: context.componentInjectAt,
-					status: 'idle'
-				});
+					status: context.taskStatus,
+					componentName: context.componentName,
+					alive: context.alive,
+					scope: context.scope,
+					withEvent: context.withEvent
+				})
+			);
+			const result: _InjectResult = this.injectComponent(targetElement, taskId);
+			if (!result.isSuccess) {
+				// inject fails, not need call setTaskStatus because this one will emit the other event
+				this.taskContext.setTaskStatus(taskId, 'idle');
+				this.emit(
+					'inject:fail',
+					buildInjectObservePayload('inject:fail', {
+						taskId,
+						kind: 'component',
+						injectAt: context.componentInjectAt,
+						status: 'idle',
+						error:
+							result.error ??
+							new Error(`Component inject failed for task "${taskId}"`),
+						componentName: context.componentName
+					})
+				);
 				return;
 			}
-			this.emit('inject:success', {
-				taskId,
-				injectAt: context.componentInjectAt
-			});
+			this.emit(
+				'inject:success',
+				buildInjectObservePayload('inject:success', {
+					taskId,
+					kind: 'component',
+					injectAt: context.componentInjectAt,
+					status: context.taskStatus,
+					componentName: context.componentName,
+					alive: context.alive,
+					scope: context.scope
+				})
+			);
 		}
 
 		// If event binding is configured, bind the event
 		if (context.withEvent) {
 			let result: boolean | null = null;
-			if (context.activitySignal) {
-				result = this.bindListenerSignal(taskId, context.activitySignal());
+			const listener: TaskListenerFeature | undefined = getTaskListener(context);
+			if (listener?.activitySignal) {
+				result = this.bindListenerSignal(taskId, listener.activitySignal());
 			} else {
 				result = this.controlListener(taskId, Action.OPEN);
 			}
 
+			// listener attach fails, not need call setTaskStatus because this one will emit the other event
 			if (result === false) {
-				context.taskStatus = 'idle';
+				this.taskContext.setTaskStatus(taskId, 'idle');
+				const listener = getTaskListener(context);
+				this.emit(
+					'listener:attachFail',
+					buildListenerObservePayload('listener:attachFail', {
+						taskId,
+						kind: context.kind,
+						injectAt,
+						status: 'idle',
+						error: new Error(`Listener attach failed for task "${taskId}"`),
+						listenerEvent: listener?.event,
+						listenAt: listener?.listenAt
+					})
+				);
 				return;
 			}
 		}
 
-		context.taskStatus = 'active';
+		this.taskContext.setTaskStatus(taskId, 'active');
 	}
 
 	public bindListenerSignal(taskId: string, source: WatchSource<boolean>): boolean {
@@ -138,7 +225,7 @@ export class TaskRunner {
 		// Stop the previous watcher before creating a new one
 		// to avoid both firing simultaneously during the immediate callback
 		if (context.watcher) {
-			context.watcher();
+			context.watcher.watcher();
 			context.watcher = undefined;
 		}
 
@@ -151,8 +238,10 @@ export class TaskRunner {
 				{ immediate: true }
 			);
 
-			context.watcher = unWatch;
-			context.watchSource = source;
+			context.watcher = {
+				watcher: unWatch,
+				watchSource: source
+			};
 			return true;
 		} catch (e) {
 			this.logger.error(`Failed to bind activity signal for task "${taskId}":`, e);
@@ -165,9 +254,10 @@ export class TaskRunner {
 			this.logger.error(`Task "${taskId}" not found, unable to manage listener state`);
 			return false;
 		}
+		const listener = getTaskListener(context);
 
 		// Check if event binding is configured
-		if (!context.withEvent || !context.listenAt || !context.event || !context.callback) {
+		if (!listener) {
 			this.logger.warn(`Task "${taskId}" has no event binding configured`);
 			return false;
 		}
@@ -175,50 +265,71 @@ export class TaskRunner {
 		switch (event) {
 			case Action.OPEN: {
 				// If controller already exists, event is already bound
-				if (context.controller) {
+				if (listener.controller) {
 					return false;
 				}
 
 				const newController = this.attachEvent(
 					taskId,
-					context.listenAt,
-					context.event,
-					context.callback
+					context.kind,
+					listener.listenAt,
+					listener.event,
+					listener.callback
 				);
 
 				if (newController) {
-					context.controller = newController;
-					this.emit('listener:open', {
-						taskId,
-						injectAt: context.listenAt,
-						status: context.taskStatus
-					});
-				} else {
-					this.logger.error(
-						`Failed to attach event "${context.event}" for task "${taskId}"`
+					listener.controller = newController;
+					this.emit(
+						'listener:open',
+						buildListenerObservePayload('listener:open', {
+							taskId,
+							kind: context.kind,
+							injectAt: listener.listenAt,
+							status: context.taskStatus,
+							listenerEvent: listener.event,
+							listenAt: listener.listenAt
+						})
 					);
-					this.emit('listener:attachFail', {
-						taskId,
-						injectAt: context.listenAt,
-						error: `Failed to attach event "${context.event}"`
-					});
+				} else {
+					const error = new Error(
+						`Failed to attach event "${listener.event}" for task "${taskId}"`
+					);
+					this.logger.error(error.message);
+					this.emit(
+						'listener:attachFail',
+						buildListenerObservePayload('listener:attachFail', {
+							taskId,
+							kind: context.kind,
+							injectAt: listener.listenAt,
+							status: context.taskStatus,
+							error,
+							listenerEvent: listener.event,
+							listenAt: listener.listenAt
+						})
+					);
 					return false;
 				}
 				break;
 			}
 			case Action.CLOSE: {
-				if (!context.controller) {
+				if (!listener.controller) {
 					return false;
 				}
 
-				context.controller.abort(); // Abort event listener
-				context.controller = undefined;
-				this.logger.info(`Event "${context.event}" detached from task "${taskId}"`);
-				this.emit('listener:close', {
-					taskId,
-					injectAt: context.listenAt,
-					status: context.taskStatus
-				});
+				listener.controller.abort(); // Abort event listener
+				listener.controller = undefined;
+				this.logger.info(`Event "${listener.event}" detached from task "${taskId}"`);
+				this.emit(
+					'listener:close',
+					buildListenerObservePayload('listener:close', {
+						taskId,
+						kind: context.kind,
+						injectAt: listener.listenAt,
+						status: context.taskStatus,
+						listenerEvent: listener.event,
+						listenAt: listener.listenAt
+					})
+				);
 				break;
 			}
 
@@ -231,6 +342,7 @@ export class TaskRunner {
 	}
 	private attachEvent(
 		id: string,
+		kind: Task['kind'],
 		listenAt: string,
 		event: string,
 		callback: EventListener
@@ -259,31 +371,49 @@ export class TaskRunner {
 			{ once: true, timeout: this.injectConfig.timeout },
 			{
 				logger: this.logger,
-				emit: this.emit
+				emit: createDomObserveEmitFactory({
+					emit: this.emit,
+					taskId: id,
+					kind,
+					injectAt: listenAt,
+					root: document
+				})
 			}
 		);
 
 		return proxyController;
 	}
-	private injectComponent(matchedElement: HTMLElement, taskId: string): boolean {
+	private injectComponent(matchedElement: HTMLElement, taskId: string): _InjectResult {
 		const context: Task | undefined = this.taskContext.get(taskId);
-		if (!context || !context.componentInjectAt) {
-			this.logger.error(`Task "${taskId}" context missing, injection aborted`);
-			return false;
+		if (!context || !isComponentTask(context)) {
+			const error = new Error(`Task "${taskId}" context missing, injection aborted`);
+			this.logger.error(error.message);
+			return {
+				isSuccess: false,
+				error
+			};
+		}
+
+		if (!context.taskId) {
+			const error = new Error(`No component found for task "${taskId}", injection aborted`);
+			this.logger.error(error.message);
+			return {
+				isSuccess: false,
+				error
+			};
 		}
 
 		if (context?.app) {
-			this.logger.warn(`Task "${taskId}" is already mounted, skipping`);
-			return false;
+			const error = new Error(`Task "${taskId}" is already mounted, skipping`);
+			this.logger.warn(error.message);
+			return {
+				isSuccess: false,
+				error
+			};
 		}
 
 		const injectAt: string = context.componentInjectAt;
 		const plugins: Plugin[] = this.taskContext.getPlugins();
-
-		if (!context?.component || !context.taskId) {
-			this.logger.error(`No component found for task "${taskId}", injection aborted`);
-			return false;
-		}
 		const currentDocument = matchedElement.ownerDocument || document;
 
 		const appRoot = currentDocument.createElement('div');
@@ -295,10 +425,14 @@ export class TaskRunner {
 		if (matchedElement.isConnected) {
 			matchedElement.appendChild(appRoot); // matchedElement is the target host element
 		} else {
-			this.logger.warn(
+			const error = new Error(
 				`Target element for task "${taskId}" is detached from DOM, injection skipped`
 			);
-			return false;
+			this.logger.warn(error.message);
+			return {
+				isSuccess: false,
+				error
+			};
 		}
 
 		try {
@@ -344,7 +478,13 @@ export class TaskRunner {
 						},
 						{
 							logger: this.logger,
-							emit: this.emit
+							emit: createDomObserveEmitFactory({
+								emit: this.emit,
+								taskId,
+								kind: context.kind,
+								injectAt,
+								root: context.scope === 'global' ? currentDocument : matchedElement
+							})
 						}
 					);
 
@@ -364,11 +504,16 @@ export class TaskRunner {
 				});
 			}
 
-			return true;
+			return {
+				isSuccess: true
+			};
 		} catch (error) {
 			this.logger.error(`Component mount failed for task "${taskId}":`, error);
 			appRoot.remove();
-			return false;
+			return {
+				isSuccess: false,
+				error
+			};
 		}
 	}
 }

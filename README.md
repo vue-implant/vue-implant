@@ -107,6 +107,7 @@ type InjectionConfig = {
 	timeout?: number;
 	logger?: ILogger;
 	observer?: ObserverHub;
+	hooks?: LifecycleHookMap;
 };
 ```
 
@@ -117,6 +118,7 @@ type InjectionConfig = {
 | `timeout` | `number` | Timeout threshold (ms) for initial injection and re-injection. Setting it explicitly to `undefined` is not recommended. | `5000` |
 | `logger` | `ILogger` | Custom logger implementation. When omitted, the built-in logger is used. | built-in logger |
 | `observer` | `ObserverHub` | Optional observability hub for subscribing runtime events. | `new ObserverHub()` |
+| `hooks` | `LifecycleHookMap` | Optional global lifecycle hooks registered once at injector creation. | `undefined` |
 
 ### `Injector.run(): void`
 
@@ -146,6 +148,7 @@ Parameter description:
 | `on.type` | yes | `string` | Event type. |
 | `on.callback` | yes | `EventListener` | Event callback. |
 | `on.activitySignal` | no | `() => Ref<boolean>` | External signal controlling listener activation. |
+| `hooks` | no | `LifecycleHookMap` | Component-level lifecycle hooks for the current task (only supported in `register`). |
 
 Return value:
 
@@ -241,6 +244,30 @@ Returns the Pinia instance previously set through `setPinia()`.
 
 Returns the `ObserverHub` instance held by the current injector, so you can subscribe/unsubscribe observability events directly.
 
+### `Injector.on(event: ObserveEventName, hook: ObserveHook): () => void`
+
+Registers a global observer hook for one event.
+
+### `Injector.onTask(taskId: string, event: ObserveEventName, hook: ObserveHook): () => void`
+
+Registers a task-scoped observer hook that only fires when `event.taskId === taskId`.
+
+### `Injector.onAny(hook: ObserveHook): () => void`
+
+Registers a global observer hook for all events.
+
+### `Injector.off(event: ObserveEventName, hook?: ObserveHook): void`
+
+Removes one global event hook or all hooks for an event.
+
+### `Injector.offTask(taskId: string, event?: ObserveEventName, hook?: ObserveHook): void`
+
+Removes task-scoped hooks by task, by task+event, or by task+event+hook.
+
+### `Injector.offAny(hook: ObserveHook): void`
+
+Removes a previously registered `onAny` hook.
+
 ### Logging
 
 `vue-implant` writes internal runtime logs through a unified logger instead of directly use `console` inside each module.
@@ -262,9 +289,9 @@ const logger: ILogger = {
 const injector = new Injector({ logger });
 ```
 
-### Observability Hooks (`ObserverHub`)
+### Lifecycle Hooks (`ObserverHub`)
 
-`vue-implant` supports subscribing to key lifecycle events through `ObserverHub`, which is useful for monitoring, analytics, and debug logging.
+`vue-implant` supports subscribing to lifecycle hooks through `ObserverHub`, which is useful for monitoring, analytics, and debug logging.
 
 **Minimal example:**
 
@@ -282,21 +309,96 @@ const offFail = observer.on('inject:fail', (event) => {
 	console.error('inject failed:', event.taskId, event.error);
 });
 
+const offTask = observer.onTask('MyComp@#app', 'task:afterReset', (event) => {
+	console.log('task reset completed:', event.taskId, event.preStatus, event.status);
+});
+
 injector.run();
 
 offFail();
 offAny();
+offTask();
 ```
 
-Common events:
+You can also register hooks declaratively:
+
+```ts
+const injector = new Injector({
+	hooks: {
+		'run:start': (event) => console.log('run start stats:', event.meta)
+	}
+});
+
+injector.register('#app', App, {
+	hooks: {
+		'task:afterDestroy': (event) => console.log('destroyed:', event.taskId)
+	}
+});
+```
+
+Hook scopes:
+
+- Global hooks: pass `hooks` in `new Injector({ hooks })`, or use `injector.on(...)` / `injector.onAny(...)`.
+- Task-scoped hooks: use `injector.onTask(taskId, event, hook)`.
+- Component-level hooks: pass `hooks` in `injector.register(injectAt, component, { hooks })`.
+- Current component-level hooks are only available for component tasks created by `register` (not `registerListener`).
+
+Lifecycle event payloads:
+
+| Event | Payload fields |
+| --- | --- |
+| `register:start` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName?`, `meta.listenerEvent?`, `meta.listenAt?`, `meta.alive?`, `meta.scope?`, `meta.timeout?`, `meta.withEvent?` |
+| `register:success` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName?`, `meta.listenerEvent?`, `meta.listenAt?`, `meta.alive?`, `meta.scope?`, `meta.timeout?`, `meta.withEvent?` |
+| `register:duplicate` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName?`, `meta.listenerEvent?` |
+| `register:error` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.componentName?`, `meta.listenerEvent?` |
+| `run:start` | `meta.totalTasks`, `meta.idleTasks`, `meta.pendingTasks`, `meta.activeTasks` |
+| `run:taskScheduled` | `taskId`, `kind`, `injectAt`, `status`, `preStatus`, `meta.timeout` |
+| `run:taskSkipped` | `taskId`, `kind`, `injectAt`, `status`, `meta.skipReason` |
+| `target:ready` | `taskId`, `kind`, `injectAt`, `status` |
+| `inject:start` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName`, `meta.alive`, `meta.scope`, `meta.withEvent` |
+| `inject:success` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName`, `meta.alive`, `meta.scope` |
+| `inject:fail` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.componentName` |
+| `listener:open` | `taskId`, `kind`, `injectAt`, `status`, `meta.listenerEvent`, `meta.listenAt` |
+| `listener:close` | `taskId`, `kind`, `injectAt`, `status`, `meta.listenerEvent`, `meta.listenAt` |
+| `listener:attachFail` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.listenerEvent`, `meta.listenAt` |
+| `alive:enable` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch` |
+| `alive:disable` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch` |
+| `alive:observeStart` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch`, `meta.observerMode` |
+| `alive:observeStop` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch`, `meta.observerMode` |
+| `task:statusChange` | `taskId`, `kind`, `injectAt`, `status`, `preStatus` |
+| `task:active` | `taskId`, `kind`, `injectAt`, `status`, `preStatus` |
+| `task:beforeReset` | `taskId`, `kind`, `injectAt`, `status` |
+| `task:reset` | `taskId`, `kind`, `injectAt`, `status` |
+| `task:afterReset` | `taskId`, `kind`, `injectAt`, `status`, `preStatus` |
+| `task:beforeDestroy` | `taskId`, `kind`, `injectAt`, `status` |
+| `task:destroy` | `taskId`, `kind`, `injectAt`, `status` |
+| `task:afterDestroy` | `taskId`, `kind`, `injectAt`, `preStatus` |
+| `resource:watcherReleased` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource` |
+| `resource:listenerReleased` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource`, `meta.listenerEvent?`, `meta.listenAt?` |
+| `resource:componentUnmounted` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource`, `meta.componentName` |
+| `dom:readyFound` | `injectAt`, `taskId`, `kind`, `durationMs`, `meta.root` |
+| `dom:readyTimeout` | `injectAt`, `taskId`, `kind`, `durationMs`, `meta.root` |
+| `dom:removed` | `injectAt`, `taskId`, `kind`, `meta.phase` |
+| `dom:restored` | `injectAt`, `taskId`, `kind`, `durationMs` |
+
+Common event groups:
 
 - register: `register:start` / `register:success` / `register:duplicate` / `register:error`
-- run: `run:start` / `run:taskScheduled` / `run:taskSkipped`
-- injection: `target:ready` / `inject:start` / `inject:success` / `inject:fail`
+- run: `run:start` / `run:taskScheduled` / `run:taskSkipped` / `target:ready`
+- injection: `inject:start` / `inject:success` / `inject:fail`
 - listener: `listener:open` / `listener:close` / `listener:attachFail`
-- lifecycle: `alive:enable` / `alive:disable` / `alive:observeStart` / `alive:observeStop` / `task:reset` / `task:destroy`
+- alive: `alive:enable` / `alive:disable` / `alive:observeStart` / `alive:observeStop`
+- task: `task:statusChange` / `task:active` / `task:beforeReset` / `task:reset` / `task:afterReset` / `task:beforeDestroy` / `task:destroy` / `task:afterDestroy`
 - resources: `resource:watcherReleased` / `resource:listenerReleased` / `resource:componentUnmounted`
 - DOM watcher: `dom:readyFound` / `dom:readyTimeout` / `dom:removed` / `dom:restored`
+
+Payload conventions:
+
+- Most task-related events carry normalized base fields: `taskId`, `kind`, `injectAt`, `status`.
+- Transition events include `preStatus` (for example: `task:statusChange`, `task:active`, `task:afterReset`, `task:afterDestroy`).
+- Time-based events include `durationMs` (for example: `dom:readyFound`, `dom:readyTimeout`, `dom:restored`).
+- Event-specific details are provided in `meta` (for example: `run:start` stats, `listener:*` binding info, `alive:*` scope/epoch/mode).
+- DOM watcher events are emitted with task context from runtime factories, while `DOMWatcher` itself remains business-agnostic.
 
 ### `Injector.enableAlive(taskId: string): void`
 

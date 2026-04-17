@@ -1,5 +1,6 @@
 import type { Ref } from 'vue';
-import type { ObserverHub } from '../hooks/ObservabilityHook/ObserverHub';
+import type { ObserverHub } from '../hooks/ObserverHub';
+import type { LifecycleHookMap } from '../hooks/type';
 import type { ILogger } from '../logger/types';
 
 export enum Action {
@@ -19,12 +20,14 @@ export type ComponentOptions = {
 		callback: EventListener;
 		activitySignal?: () => Ref<boolean>;
 	};
+	hooks?: LifecycleHookMap;
 };
 
 export type InjectionConfig = {
-	alive?: boolean;
-	scope?: 'local' | 'global';
-	timeout?: number;
-	logger?: ILogger;
+	alive: boolean;
+	scope: 'local' | 'global';
+	timeout: number;
+	logger: ILogger;
 	observer?: ObserverHub;
+	hooks?: LifecycleHookMap;
 };
