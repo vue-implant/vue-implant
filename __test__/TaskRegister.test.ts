@@ -43,7 +43,6 @@ describe('TaskRegister', () => {
 				componentInjectAt: '#app',
 				component,
 				timeout: 5000,
-				aliveEpoch: 0,
 				isObserver: false
 			})
 		);
@@ -65,7 +64,6 @@ describe('TaskRegister', () => {
 				alive: true,
 				scope: 'global',
 				timeout: 5000,
-				aliveEpoch: 0,
 				isObserver: false
 			})
 		);
@@ -96,7 +94,6 @@ describe('TaskRegister', () => {
 				component,
 				withEvent: true,
 				timeout: 5000,
-				aliveEpoch: 0,
 				isObserver: false,
 				listener: {
 					listenAt: '#btn',

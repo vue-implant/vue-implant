@@ -361,10 +361,10 @@ Lifecycle event payloads:
 | `listener:open` | `taskId`, `kind`, `injectAt`, `status`, `meta.listenerEvent`, `meta.listenAt` |
 | `listener:close` | `taskId`, `kind`, `injectAt`, `status`, `meta.listenerEvent`, `meta.listenAt` |
 | `listener:attachFail` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.listenerEvent`, `meta.listenAt` |
-| `alive:enable` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch` |
-| `alive:disable` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch` |
-| `alive:observeStart` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch`, `meta.observerMode` |
-| `alive:observeStop` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch`, `meta.observerMode` |
+| `alive:enable` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope` |
+| `alive:disable` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope` |
+| `alive:observeStart` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.observerMode` |
+| `alive:observeStop` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.observerMode` |
 | `task:statusChange` | `taskId`, `kind`, `injectAt`, `status`, `preStatus` |
 | `task:active` | `taskId`, `kind`, `injectAt`, `status`, `preStatus` |
 | `task:beforeReset` | `taskId`, `kind`, `injectAt`, `status` |
@@ -397,7 +397,7 @@ Payload conventions:
 - Most task-related events carry normalized base fields: `taskId`, `kind`, `injectAt`, `status`.
 - Transition events include `preStatus` (for example: `task:statusChange`, `task:active`, `task:afterReset`, `task:afterDestroy`).
 - Time-based events include `durationMs` (for example: `dom:readyFound`, `dom:readyTimeout`, `dom:restored`).
-- Event-specific details are provided in `meta` (for example: `run:start` stats, `listener:*` binding info, `alive:*` scope/epoch/mode).
+- Event-specific details are provided in `meta` (for example: `run:start` stats, `listener:*` binding info, `alive:*` scope/mode).
 - DOM watcher events are emitted with task context from runtime factories, while `DOMWatcher` itself remains business-agnostic.
 
 ### `Injector.enableAlive(taskId: string): void`

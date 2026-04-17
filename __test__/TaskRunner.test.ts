@@ -785,12 +785,13 @@ describe('TaskRunner', () => {
 		expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Unknown action type'));
 	});
 
-	it('should start onDomAlive for alive component after successful mount', async () => {
+	it('should start onDomAlive for alive component after successful mount', () => {
 		const host = document.createElement('div');
 		host.id = 'alive-host';
 		document.body.appendChild(host);
 
-		const onDomAliveSpy = vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(() => {});
+		const stopHandler = vi.fn();
+		const onDomAliveSpy = vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(stopHandler);
 		taskContext.set(
 			'alive-task',
 			createComponentTask({
@@ -801,15 +802,15 @@ describe('TaskRunner', () => {
 				component: { name: 'AliveComp', render: () => null },
 				alive: true,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
 
 		taskRunner.onTargetReady(host, 'alive-task');
-		await nextTick();
 
 		expect(onDomAliveSpy).toHaveBeenCalledOnce();
+		expect(stopHandler).not.toHaveBeenCalled();
+		expect(taskContext.get<ComponentTask>('alive-task')?.disableAlive).toBe(stopHandler);
 		expect(taskContext.get<ComponentTask>('alive-task')?.isObserver).toBe(true);
 	});
 
@@ -1059,7 +1060,7 @@ describe('TaskRunner', () => {
 		);
 	});
 
-	it('should use document root for onDomAlive when scope is global', async () => {
+	it('should use document root for onDomAlive when scope is global', () => {
 		const host = document.createElement('div');
 		host.id = 'global-alive-host';
 		document.body.appendChild(host);
@@ -1075,19 +1076,17 @@ describe('TaskRunner', () => {
 				component: { name: 'GlobalAliveComp', render: () => null },
 				alive: true,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'global'
 			})
 		);
 
 		taskRunner.onTargetReady(host, 'global-alive-task');
-		await nextTick();
 
 		expect(aliveSpy).toHaveBeenCalledOnce();
 		expect(aliveSpy.mock.calls[0][4]).toBe(document);
 	});
 
-	it('should call stopHandler when alive setup becomes stale after onDomAlive call', async () => {
+	it('should call stopHandler when alive setup is cancelled during onDomAlive setup', () => {
 		const host = document.createElement('div');
 		host.id = 'stale-alive-host';
 		document.body.appendChild(host);
@@ -1102,7 +1101,6 @@ describe('TaskRunner', () => {
 				component: { name: 'StaleAliveComp', render: () => null },
 				alive: true,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
@@ -1111,24 +1109,24 @@ describe('TaskRunner', () => {
 		vi.spyOn(DOMWatcher, 'onDomAlive').mockImplementation(() => {
 			const ctx = taskContext.get<ComponentTask>('stale-alive-task');
 			if (ctx) {
-				ctx.aliveEpoch = (ctx.aliveEpoch ?? 0) + 1;
+				ctx.alive = false;
 			}
 			return stopHandler;
 		});
 
 		taskRunner.onTargetReady(host, 'stale-alive-task');
-		await nextTick();
 
 		expect(stopHandler).toHaveBeenCalledOnce();
 		expect(taskContext.get<ComponentTask>('stale-alive-task')?.isObserver).toBe(false);
 	});
 
-	it('should short-circuit alive setup when alive is cancelled before nextTick', async () => {
+	it('should assign alive observer handler immediately when setup succeeds', () => {
 		const host = document.createElement('div');
 		host.id = 'cancel-alive-host';
 		document.body.appendChild(host);
 
-		const onDomAliveSpy = vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(() => {});
+		const stopHandler = vi.fn();
+		const onDomAliveSpy = vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(stopHandler);
 		taskContext.set(
 			'cancel-alive-task',
 			createComponentTask({
@@ -1139,23 +1137,19 @@ describe('TaskRunner', () => {
 				component: { name: 'CancelAliveComp', render: () => null },
 				alive: true,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
 
 		taskRunner.onTargetReady(host, 'cancel-alive-task');
 		const context = taskContext.get<ComponentTask>('cancel-alive-task');
-		if (context) {
-			context.alive = false;
-		}
-		await nextTick();
 
-		expect(onDomAliveSpy).not.toHaveBeenCalled();
-		expect(taskContext.get<ComponentTask>('cancel-alive-task')?.isObserver).toBe(false);
+		expect(onDomAliveSpy).toHaveBeenCalledOnce();
+		expect(context?.disableAlive).toBe(stopHandler);
+		expect(context?.isObserver).toBe(true);
 	});
 
-	it('should call reset and onTargetReady from onDomAlive callbacks', async () => {
+	it('should call reset and onTargetReady from onDomAlive callbacks', () => {
 		const host = document.createElement('div');
 		host.id = 'alive-callback-host';
 		document.body.appendChild(host);
@@ -1170,7 +1164,6 @@ describe('TaskRunner', () => {
 				component: { name: 'AliveCallbackComp', render: () => null },
 				alive: true,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
@@ -1189,10 +1182,9 @@ describe('TaskRunner', () => {
 		);
 
 		taskRunner.onTargetReady(host, 'alive-callback-task');
-		await nextTick();
 
 		expect(resetSpy).toHaveBeenCalledWith('alive-callback-task');
-		expect(taskContext.get('alive-callback-task')?.taskStatus).toBe('idle');
+		expect(taskContext.get('alive-callback-task')?.taskStatus).toBe('active');
 	});
 	it('should set Task`s timeout config correctly', async () => {
 		const onDomReadySpy = vi.spyOn(DOMWatcher, 'onDomReady');
