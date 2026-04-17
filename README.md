@@ -45,7 +45,7 @@ We highly recommend using  [vite-plugin-monkey](https://github.com/lisonge/vite-
 
 ## Demo 🎬
 
-Public demo site: https://flowingink.github.io/vue-implant/
+Public demo site: https://vue-implant.github.io/vue-implant/
 
 ## Installation 📦
 

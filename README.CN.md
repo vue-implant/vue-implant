@@ -47,7 +47,7 @@
 
 ## 演示 🎬
 
-公开演示站点：https://flowingink.github.io/vue-implant/
+公开演示站点：https://vue-implant.github.io/vue-implant/
 
 ## 安装 📦
 
@@ -648,4 +648,3 @@ npm run lint:fix
 ## License 📄
 
 本项目基于 MIT License，详见 [LICENSE](LICENSE)。
-
