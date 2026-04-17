@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick, ref, type WatchHandle } from 'vue';
 import { ObserverHub } from '../src/core/hooks/ObserverHub';
+import type { ObserveEvent } from '../src/core/hooks/type';
 import { createObserveEmitter } from '../src/core/hooks/util';
 import { Action } from '../src/core/Injector/types';
 import { Logger } from '../src/core/logger/Logger';
@@ -113,6 +114,147 @@ describe('TaskRunner', () => {
 		expect(task.app).toBeDefined();
 		expect(task.appRoot?.parentElement).toBe(host);
 		expect(task.taskStatus).toBe('active');
+	});
+
+	it('should emit normalized inject start and success payloads', () => {
+		const observer = new ObserverHub();
+		taskRunner = new TaskRunner(
+			taskContext,
+			{
+				alive: false,
+				scope: 'local',
+				timeout: 5000,
+				logger: new Logger(),
+				observer
+			},
+			createObserveEmitter(observer)
+		);
+
+		const host = document.createElement('div');
+		host.id = 'inject-observe-host';
+		document.body.appendChild(host);
+
+		const btn = document.createElement('button');
+		btn.id = 'inject-observe-btn';
+		document.body.appendChild(btn);
+
+		taskContext.set(
+			'inject-observe-task',
+			createComponentTask({
+				taskId: 'inject-observe-task',
+				taskStatus: 'idle',
+				componentName: 'InjectObserveComp',
+				componentInjectAt: '#inject-observe-host',
+				component: { name: 'InjectObserveComp', render: () => null },
+				alive: true,
+				scope: 'global',
+				withEvent: true,
+				listener: {
+					listenAt: '#inject-observe-btn',
+					event: 'click',
+					callback: vi.fn()
+				}
+			})
+		);
+
+		const injectEvents: ObserveEvent[] = [];
+		observer.onAny((event) => {
+			if (event.name.startsWith('inject:')) {
+				injectEvents.push(event);
+			}
+		});
+
+		taskRunner.onTargetReady(host, 'inject-observe-task');
+
+		expect(injectEvents[0]).toMatchObject({
+			name: 'inject:start',
+			taskId: 'inject-observe-task',
+			kind: 'component',
+			injectAt: '#inject-observe-host',
+			status: 'idle',
+			meta: {
+				componentName: 'InjectObserveComp',
+				alive: true,
+				scope: 'global',
+				withEvent: true
+			}
+		});
+
+		expect(injectEvents[1]).toMatchObject({
+			name: 'inject:success',
+			taskId: 'inject-observe-task',
+			kind: 'component',
+			injectAt: '#inject-observe-host',
+			status: 'idle',
+			meta: {
+				componentName: 'InjectObserveComp',
+				alive: true,
+				scope: 'global'
+			}
+		});
+	});
+
+	it('should emit normalized inject fail payload', () => {
+		const observer = new ObserverHub();
+		taskRunner = new TaskRunner(
+			taskContext,
+			{
+				alive: false,
+				scope: 'local',
+				timeout: 5000,
+				logger: new Logger(),
+				observer
+			},
+			createObserveEmitter(observer)
+		);
+
+		taskContext.set(
+			'inject-fail-task',
+			createComponentTask({
+				taskId: 'inject-fail-task',
+				taskStatus: 'pending',
+				componentName: 'InjectFailComp',
+				componentInjectAt: '#inject-fail-host',
+				component: { name: 'InjectFailComp', render: () => null },
+				alive: false,
+				scope: 'local'
+			})
+		);
+
+		const injectEvents: ObserveEvent[] = [];
+		observer.onAny((event) => {
+			if (event.name.startsWith('inject:')) {
+				injectEvents.push(event);
+			}
+		});
+
+		taskRunner.onTargetReady(document.createElement('div'), 'inject-fail-task');
+
+		expect(injectEvents[0]).toMatchObject({
+			name: 'inject:start',
+			taskId: 'inject-fail-task',
+			kind: 'component',
+			injectAt: '#inject-fail-host',
+			status: 'pending',
+			meta: {
+				componentName: 'InjectFailComp',
+				alive: false,
+				scope: 'local',
+				withEvent: false
+			}
+		});
+
+		expect(injectEvents[1]).toMatchObject({
+			name: 'inject:fail',
+			taskId: 'inject-fail-task',
+			kind: 'component',
+			injectAt: '#inject-fail-host',
+			status: 'idle',
+			meta: {
+				componentName: 'InjectFailComp'
+			}
+		});
+		expect(injectEvents[1].error).toBeDefined();
 	});
 
 	it('should emit task:active when a task becomes active', () => {

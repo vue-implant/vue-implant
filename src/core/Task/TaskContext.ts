@@ -3,12 +3,14 @@ import type { ObserveEmitter } from '../hooks/type';
 import { noopObserveEmitter } from '../hooks/util';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
+import { buildResourceObservePayload } from '../payload/buildResourceObservePayload';
 import type {
 	ComponentTask,
 	ListenerTask,
 	Task,
 	TaskErrorMessage,
 	TaskKind,
+	TaskListenerFeature,
 	TaskRecord,
 	TaskStatus
 } from './types';
@@ -276,11 +278,16 @@ export class TaskContext {
 				context.app.unmount();
 				context.app = undefined;
 				context.instance = undefined;
-				this.emit('resource:componentUnmounted', {
-					taskId: id,
-					injectAt: context.componentInjectAt,
-					status: context.taskStatus
-				});
+				this.emit(
+					'resource:componentUnmounted',
+					buildResourceObservePayload('resource:componentUnmounted', {
+						taskId: id,
+						kind: 'component',
+						injectAt: context.componentInjectAt,
+						status: context.taskStatus,
+						componentName: context.componentName
+					})
+				);
 			} catch (error) {
 				this.logger.error(`Failed to unmount component for task "${id}":`, error);
 			}
@@ -320,7 +327,12 @@ export class TaskContext {
 	public releaseListener(id: string): void {
 		const context = this.contextMap.get(id);
 		if (!context) return;
-		const listener = getTaskListener(context);
+		const listener: TaskListenerFeature | undefined = getTaskListener(context);
+		const listenerEvent: string | undefined =
+			listener?.event ?? (isComponentTask(context) ? context.listener?.event : context.event);
+		const listenAt: string | undefined =
+			listener?.listenAt ??
+			(isComponentTask(context) ? context.listener?.listenAt : context.listenAt);
 
 		if (listener?.controller) {
 			try {
@@ -338,11 +350,17 @@ export class TaskContext {
 			context.listener = undefined;
 		}
 		context.withEvent = false;
-		this.emit('resource:listenerReleased', {
-			taskId: id,
-			injectAt: getTaskInjectAt(context),
-			status: context.taskStatus
-		});
+		this.emit(
+			'resource:listenerReleased',
+			buildResourceObservePayload('resource:listenerReleased', {
+				taskId: id,
+				kind: context.kind,
+				injectAt: getTaskInjectAt(context),
+				status: context.taskStatus,
+				listenerEvent,
+				listenAt
+			})
+		);
 	}
 
 	/**
@@ -356,11 +374,15 @@ export class TaskContext {
 			try {
 				context.watcher.watcher();
 				context.watcher = undefined;
-				this.emit('resource:watcherReleased', {
-					taskId: id,
-					injectAt: getTaskInjectAt(context),
-					status: context.taskStatus
-				});
+				this.emit(
+					'resource:watcherReleased',
+					buildResourceObservePayload('resource:watcherReleased', {
+						taskId: id,
+						kind: context.kind,
+						injectAt: getTaskInjectAt(context),
+						status: context.taskStatus
+					})
+				);
 			} catch (error) {
 				this.logger.error(`Failed to stop watcher for task "${id}":`, error);
 			}

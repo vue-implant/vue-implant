@@ -5,9 +5,10 @@ import type { ObserveEmitter } from '../hooks/type';
 import { Action, type ActionEvent, type InjectionConfig } from '../Injector/types';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
+import { buildInjectObservePayload } from '../payload/buildInjectObservePayload';
 import { DOMWatcher } from '../watcher/DomWatcher';
 import type { TaskContext } from './TaskContext';
-import type { Task, TaskListenerFeature } from './types';
+import type { _InjectResult, Task, TaskListenerFeature } from './types';
 import { getTaskInjectAt, getTaskListener, isComponentTask } from './util';
 
 export class TaskRunner {
@@ -95,25 +96,50 @@ export class TaskRunner {
 
 		// Mount component
 		if (isComponentTask(context)) {
-			this.emit('inject:start', {
-				taskId,
-				injectAt: context.componentInjectAt
-			});
-			const result: boolean = this.injectComponent(targetElement, taskId);
-			if (!result) {
+			this.emit(
+				'inject:start',
+				buildInjectObservePayload('inject:start', {
+					taskId,
+					kind: 'component',
+					injectAt: context.componentInjectAt,
+					status: context.taskStatus,
+					componentName: context.componentName,
+					alive: context.alive,
+					scope: context.scope,
+					withEvent: context.withEvent
+				})
+			);
+			const result: _InjectResult = this.injectComponent(targetElement, taskId);
+			if (!result.isSuccess) {
 				// inject fails, not need call setTaskStatus because this one will emit the other event
 				context.taskStatus = 'idle';
-				this.emit('inject:fail', {
-					taskId,
-					injectAt: context.componentInjectAt,
-					status: 'idle'
-				});
+				this.emit(
+					'inject:fail',
+					buildInjectObservePayload('inject:fail', {
+						taskId,
+						kind: 'component',
+						injectAt: context.componentInjectAt,
+						status: 'idle',
+						error:
+							result.error ??
+							new Error(`Component inject failed for task "${taskId}"`),
+						componentName: context.componentName
+					})
+				);
 				return;
 			}
-			this.emit('inject:success', {
-				taskId,
-				injectAt: context.componentInjectAt
-			});
+			this.emit(
+				'inject:success',
+				buildInjectObservePayload('inject:success', {
+					taskId,
+					kind: 'component',
+					injectAt: context.componentInjectAt,
+					status: context.taskStatus,
+					componentName: context.componentName,
+					alive: context.alive,
+					scope: context.scope
+				})
+			);
 		}
 
 		// If event binding is configured, bind the event
@@ -287,21 +313,33 @@ export class TaskRunner {
 
 		return proxyController;
 	}
-	private injectComponent(matchedElement: HTMLElement, taskId: string): boolean {
+	private injectComponent(matchedElement: HTMLElement, taskId: string): _InjectResult {
 		const context: Task | undefined = this.taskContext.get(taskId);
 		if (!context || !isComponentTask(context)) {
-			this.logger.error(`Task "${taskId}" context missing, injection aborted`);
-			return false;
+			const error = new Error(`Task "${taskId}" context missing, injection aborted`);
+			this.logger.error(error.message);
+			return {
+				isSuccess: false,
+				error
+			};
 		}
 
 		if (!context.taskId) {
-			this.logger.error(`No component found for task "${taskId}", injection aborted`);
-			return false;
+			const error = new Error(`No component found for task "${taskId}", injection aborted`);
+			this.logger.error(error.message);
+			return {
+				isSuccess: false,
+				error
+			};
 		}
 
 		if (context?.app) {
-			this.logger.warn(`Task "${taskId}" is already mounted, skipping`);
-			return false;
+			const error = new Error(`Task "${taskId}" is already mounted, skipping`);
+			this.logger.warn(error.message);
+			return {
+				isSuccess: false,
+				error
+			};
 		}
 
 		const injectAt: string = context.componentInjectAt;
@@ -317,10 +355,14 @@ export class TaskRunner {
 		if (matchedElement.isConnected) {
 			matchedElement.appendChild(appRoot); // matchedElement is the target host element
 		} else {
-			this.logger.warn(
+			const error = new Error(
 				`Target element for task "${taskId}" is detached from DOM, injection skipped`
 			);
-			return false;
+			this.logger.warn(error.message);
+			return {
+				isSuccess: false,
+				error
+			};
 		}
 
 		try {
@@ -386,11 +428,16 @@ export class TaskRunner {
 				});
 			}
 
-			return true;
+			return {
+				isSuccess: true
+			};
 		} catch (error) {
 			this.logger.error(`Component mount failed for task "${taskId}":`, error);
 			appRoot.remove();
-			return false;
+			return {
+				isSuccess: false,
+				error
+			};
 		}
 	}
 }

@@ -811,5 +811,92 @@ describe('TaskContext', () => {
 			expect(events).toContain('resource:listenerReleased');
 			expect(events).toContain('resource:componentUnmounted');
 		});
+
+		it('should emit normalized resource payload fields', () => {
+			const observer = new ObserverHub();
+			const observed = new TaskContext((name, payload) => {
+				observer.emit({
+					name,
+					ts: Date.now(),
+					...(payload ?? {})
+				});
+			}, undefined);
+
+			const released: Record<string, unknown> = {};
+			observer.onAny((event) => {
+				if (event.name.startsWith('resource:')) {
+					released[event.name] = event;
+				}
+			});
+
+			const watcher = vi.fn() as unknown as WatchHandle;
+			const abort = vi.fn();
+			const unmount = vi.fn();
+			observed.set(
+				'obs-resource',
+				createComponentTask({
+					taskId: 'obs-resource',
+					taskStatus: 'idle',
+					timeout: 5000,
+					componentName: 'ObsResourceComp',
+					componentInjectAt: '#obs-resource',
+					component: { name: 'ObsResourceComp', render: () => null },
+					alive: false,
+					scope: 'local',
+					watcher: {
+						watcher,
+						watchSource: () => true
+					},
+					withEvent: true,
+					listener: {
+						listenAt: '#resource-btn',
+						event: 'click',
+						callback: vi.fn(),
+						controller: { abort } as unknown as AbortController
+					},
+					app: { unmount } as unknown as App<Element>
+				})
+			);
+
+			observed.releaseWatcher('obs-resource');
+			observed.releaseListener('obs-resource');
+			observed.releaseComponentInstance('obs-resource');
+
+			expect(released['resource:watcherReleased']).toMatchObject({
+				name: 'resource:watcherReleased',
+				taskId: 'obs-resource',
+				kind: 'component',
+				injectAt: '#obs-resource',
+				status: 'idle',
+				meta: {
+					resource: 'watcher'
+				}
+			});
+
+			expect(released['resource:listenerReleased']).toMatchObject({
+				name: 'resource:listenerReleased',
+				taskId: 'obs-resource',
+				kind: 'component',
+				injectAt: '#obs-resource',
+				status: 'idle',
+				meta: {
+					resource: 'listener',
+					listenerEvent: 'click',
+					listenAt: '#resource-btn'
+				}
+			});
+
+			expect(released['resource:componentUnmounted']).toMatchObject({
+				name: 'resource:componentUnmounted',
+				taskId: 'obs-resource',
+				kind: 'component',
+				injectAt: '#obs-resource',
+				status: 'idle',
+				meta: {
+					resource: 'component',
+					componentName: 'ObsResourceComp'
+				}
+			});
+		});
 	});
 });
