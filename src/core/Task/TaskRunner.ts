@@ -144,7 +144,7 @@ export class TaskRunner {
 			const result: _InjectResult = this.injectComponent(targetElement, taskId);
 			if (!result.isSuccess) {
 				// inject fails, not need call setTaskStatus because this one will emit the other event
-				context.taskStatus = 'idle';
+				this.taskContext.setTaskStatus(taskId, 'idle');
 				this.emit(
 					'inject:fail',
 					buildInjectObservePayload('inject:fail', {
@@ -186,7 +186,7 @@ export class TaskRunner {
 
 			// listener attach fails, not need call setTaskStatus because this one will emit the other event
 			if (result === false) {
-				context.taskStatus = 'idle';
+				this.taskContext.setTaskStatus(taskId, 'idle');
 				const listener = getTaskListener(context);
 				this.emit(
 					'listener:attachFail',
@@ -204,12 +204,7 @@ export class TaskRunner {
 			}
 		}
 
-		context.taskStatus = 'active';
-		this.emit('task:active', {
-			taskId,
-			injectAt,
-			status: 'active'
-		});
+		this.taskContext.setTaskStatus(taskId, 'active');
 	}
 
 	public bindListenerSignal(taskId: string, source: WatchSource<boolean>): boolean {

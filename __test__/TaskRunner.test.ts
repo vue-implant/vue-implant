@@ -418,7 +418,8 @@ describe('TaskRunner', () => {
 
 	it('should emit task:active when a task becomes active', () => {
 		const observer = new ObserverHub();
-		const activeEvents: string[] = [];
+		const activeEvents: ObserveEvent[] = [];
+		taskContext = new TaskContext(createObserveEmitter(observer), new Logger());
 		taskRunner = new TaskRunner(
 			taskContext,
 			{
@@ -431,7 +432,7 @@ describe('TaskRunner', () => {
 			createObserveEmitter(observer)
 		);
 		observer.on('task:active', (event) => {
-			activeEvents.push(`${event.taskId}:${event.status}`);
+			activeEvents.push(event);
 		});
 
 		const host = document.createElement('div');
@@ -451,7 +452,15 @@ describe('TaskRunner', () => {
 
 		taskRunner.onTargetReady(host, 'active-event-task');
 
-		expect(activeEvents).toEqual(['active-event-task:active']);
+		expect(activeEvents).toHaveLength(1);
+		expect(activeEvents[0]).toMatchObject({
+			name: 'task:active',
+			taskId: 'active-event-task',
+			kind: 'component',
+			injectAt: '#active-event-host',
+			status: 'active',
+			preStatus: 'idle'
+		});
 	});
 
 	it('should install all registered shared plugins when mounting component', () => {

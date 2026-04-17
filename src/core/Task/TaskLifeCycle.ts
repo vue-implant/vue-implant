@@ -4,10 +4,11 @@ import type { InjectionConfig } from '../Injector/types';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
 import { buildAliveObservePayload } from '../payload/buildAliveObservePayload';
+import { buildTaskObservePayload } from '../payload/buildTaskObservePayload';
 import { DOMWatcher } from '../watcher/DomWatcher';
 import type { TaskContext } from './TaskContext';
 import type { Task } from './types';
-import { isComponentTask } from './util';
+import { getTaskInjectAt, isComponentTask } from './util';
 
 export class TaskLifeCycle {
 	private readonly taskContext: TaskContext;
@@ -240,30 +241,44 @@ export class TaskLifeCycle {
 
 	public destroy(taskId: string): void {
 		const context: Task | undefined = this.taskContext.get(taskId);
-		const injectAt = context
-			? isComponentTask(context)
-				? context.componentInjectAt
-				: context.listenAt
-			: undefined;
-		this.emit('task:beforeDestroy', {
-			taskId,
-			injectAt,
-			status: context?.taskStatus
-		});
-		this.emit('task:destroy', {
-			taskId,
-			injectAt,
-			status: context?.taskStatus
-		});
-		if (context && isComponentTask(context) && context.alive) {
+		if (!context) {
+			this.logger.error(`Task ${taskId} not found`);
+			return;
+		}
+
+		const preStatus = context.taskStatus;
+		const injectAt = getTaskInjectAt(context);
+		this.emit(
+			'task:beforeDestroy',
+			buildTaskObservePayload('task:beforeDestroy', {
+				taskId,
+				kind: context.kind,
+				injectAt,
+				status: preStatus
+			})
+		);
+		this.emit(
+			'task:destroy',
+			buildTaskObservePayload('task:destroy', {
+				taskId,
+				kind: context.kind,
+				injectAt,
+				status: preStatus
+			})
+		);
+		if (isComponentTask(context) && context.alive) {
 			this.disableAlive(taskId);
 		}
 		this.taskContext.destroy(taskId);
-		this.emit('task:afterDestroy', {
-			taskId,
-			injectAt,
-			status: 'idle'
-		});
+		this.emit(
+			'task:afterDestroy',
+			buildTaskObservePayload('task:afterDestroy', {
+				taskId,
+				kind: context.kind,
+				injectAt,
+				preStatus
+			})
+		);
 	}
 
 	public destroyAll(): void {
@@ -277,30 +292,45 @@ export class TaskLifeCycle {
 	}
 	public reset(taskId: string): void {
 		const context: Task | undefined = this.taskContext.get(taskId);
-		const injectAt = context
-			? isComponentTask(context)
-				? context.componentInjectAt
-				: context.listenAt
-			: undefined;
-		this.emit('task:beforeReset', {
-			taskId,
-			injectAt,
-			status: context?.taskStatus
-		});
-		this.emit('task:reset', {
-			taskId,
-			injectAt,
-			status: context?.taskStatus
-		});
-		if (context && isComponentTask(context) && context.alive) {
+		if (!context) {
+			this.logger.error(`Task ${taskId} not found`);
+			return;
+		}
+
+		const preStatus = context.taskStatus;
+		const injectAt = getTaskInjectAt(context);
+		this.emit(
+			'task:beforeReset',
+			buildTaskObservePayload('task:beforeReset', {
+				taskId,
+				kind: context.kind,
+				injectAt,
+				status: preStatus
+			})
+		);
+		this.emit(
+			'task:reset',
+			buildTaskObservePayload('task:reset', {
+				taskId,
+				kind: context.kind,
+				injectAt,
+				status: preStatus
+			})
+		);
+		if (isComponentTask(context) && context.alive) {
 			this.disableAlive(taskId);
 		}
 		this.taskContext.reset(taskId);
-		this.emit('task:afterReset', {
-			taskId,
-			injectAt,
-			status: 'idle'
-		});
+		this.emit(
+			'task:afterReset',
+			buildTaskObservePayload('task:afterReset', {
+				taskId,
+				kind: context.kind,
+				injectAt,
+				status: context.taskStatus,
+				preStatus
+			})
+		);
 	}
 	public resetAll(): void {
 		for (const id of this.taskContext.keys()) {

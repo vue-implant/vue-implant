@@ -841,4 +841,132 @@ describe('TaskLifeCycle', () => {
 			}
 		});
 	});
+
+	it('should emit normalized task reset and destroy payloads', () => {
+		const observer = new ObserverHub();
+		const lifecycleWithObserver = new TaskLifeCycle(
+			taskContext,
+			onTargetReady,
+			{
+				alive: false,
+				scope: 'local',
+				timeout: 5000,
+				logger: new Logger()
+			},
+			createObserveEmitter(observer)
+		);
+
+		taskContext.set(
+			'task-life-observe',
+			createComponentTask({
+				taskId: 'task-life-observe',
+				taskStatus: 'pending',
+				componentName: 'TaskLifeObserveComp',
+				componentInjectAt: '#task-life-observe',
+				component: { name: 'TaskLifeObserveComp' },
+				alive: false,
+				scope: 'local'
+			})
+		);
+
+		const taskEvents: ObserveEvent[] = [];
+		observer.onAny((event) => {
+			if (event.name.startsWith('task:')) {
+				taskEvents.push(event);
+			}
+		});
+
+		lifecycleWithObserver.reset('task-life-observe');
+
+		expect(
+			taskEvents.find(
+				(event) => event.name === 'task:beforeReset' && event.taskId === 'task-life-observe'
+			)
+		).toMatchObject({
+			name: 'task:beforeReset',
+			taskId: 'task-life-observe',
+			kind: 'component',
+			injectAt: '#task-life-observe',
+			status: 'pending'
+		});
+
+		expect(
+			taskEvents.find(
+				(event) => event.name === 'task:reset' && event.taskId === 'task-life-observe'
+			)
+		).toMatchObject({
+			name: 'task:reset',
+			taskId: 'task-life-observe',
+			kind: 'component',
+			injectAt: '#task-life-observe',
+			status: 'pending'
+		});
+
+		expect(
+			taskEvents.find(
+				(event) => event.name === 'task:afterReset' && event.taskId === 'task-life-observe'
+			)
+		).toMatchObject({
+			name: 'task:afterReset',
+			taskId: 'task-life-observe',
+			kind: 'component',
+			injectAt: '#task-life-observe',
+			status: 'idle',
+			preStatus: 'pending'
+		});
+
+		taskContext.set(
+			'task-life-observe',
+			createComponentTask({
+				taskId: 'task-life-observe',
+				taskStatus: 'active',
+				componentName: 'TaskLifeObserveComp',
+				componentInjectAt: '#task-life-observe',
+				component: { name: 'TaskLifeObserveComp' },
+				alive: false,
+				scope: 'local'
+			})
+		);
+
+		taskEvents.length = 0;
+		lifecycleWithObserver.destroy('task-life-observe');
+
+		expect(
+			taskEvents.find(
+				(event) =>
+					event.name === 'task:beforeDestroy' && event.taskId === 'task-life-observe'
+			)
+		).toMatchObject({
+			name: 'task:beforeDestroy',
+			taskId: 'task-life-observe',
+			kind: 'component',
+			injectAt: '#task-life-observe',
+			status: 'active'
+		});
+
+		expect(
+			taskEvents.find(
+				(event) => event.name === 'task:destroy' && event.taskId === 'task-life-observe'
+			)
+		).toMatchObject({
+			name: 'task:destroy',
+			taskId: 'task-life-observe',
+			kind: 'component',
+			injectAt: '#task-life-observe',
+			status: 'active'
+		});
+
+		expect(
+			taskEvents.find(
+				(event) =>
+					event.name === 'task:afterDestroy' && event.taskId === 'task-life-observe'
+			)
+		).toMatchObject({
+			name: 'task:afterDestroy',
+			taskId: 'task-life-observe',
+			kind: 'component',
+			injectAt: '#task-life-observe',
+			preStatus: 'active'
+		});
+	});
 });

@@ -187,6 +187,16 @@ describe('ObserverHub', () => {
 		expect(hub.hasHooks()).toBe(true);
 	});
 
+	it('should support task:statusChange hooks', () => {
+		const hub = new ObserverHub();
+		const hook = vi.fn();
+		hub.on('task:statusChange', hook);
+
+		hub.emit(makeEvent('task:statusChange'));
+
+		expect(hook).toHaveBeenCalledOnce();
+	});
+
 	it('should isolate hook errors and continue dispatch', () => {
 		const logger = {
 			info: vi.fn(),

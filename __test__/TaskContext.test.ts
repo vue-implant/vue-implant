@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { App, ComponentPublicInstance, Ref, WatchHandle } from 'vue';
 import { ObserverHub } from '../src/core/hooks/ObserverHub';
+import type { ObserveEvent } from '../src/core/hooks/type';
 import { TaskContext } from '../src/core/Task/TaskContext';
 import type { ComponentTask, Task } from '../src/core/Task/types';
 import { createComponentTask, createListenerTask } from './factory/TaskFactor';
@@ -137,6 +138,69 @@ describe('TaskContext', () => {
 			);
 			taskContext.setTaskStatus('test', 'active');
 			expect(taskContext.getTaskStatus('test')).toBe('active');
+		});
+
+		it('should emit normalized task status change payloads', () => {
+			const observer = new ObserverHub();
+			const observed = new TaskContext((name, payload) => {
+				observer.emit({
+					name,
+					ts: Date.now(),
+					...(payload ?? {})
+				});
+			}, undefined);
+
+			observed.set(
+				'status-observe-task',
+				createListenerTask({
+					taskId: 'status-observe-task',
+					taskStatus: 'idle',
+					withEvent: false,
+					listenAt: '#status-observe',
+					event: 'click',
+					callback: vi.fn()
+				})
+			);
+
+			const taskEvents: ObserveEvent[] = [];
+			observer.onAny((event) => {
+				if (event.name.startsWith('task:')) {
+					taskEvents.push(event);
+				}
+			});
+
+			observed.setTaskStatus('status-observe-task', 'pending');
+			observed.setTaskStatus('status-observe-task', 'active');
+
+			expect(
+				taskEvents.find(
+					(event) =>
+						event.name === 'task:statusChange' &&
+						event.taskId === 'status-observe-task' &&
+						event.status === 'pending'
+				)
+			).toMatchObject({
+				name: 'task:statusChange',
+				taskId: 'status-observe-task',
+				kind: 'listener',
+				injectAt: '#status-observe',
+				status: 'pending',
+				preStatus: 'idle'
+			});
+
+			expect(
+				taskEvents.find(
+					(event) =>
+						event.name === 'task:active' && event.taskId === 'status-observe-task'
+				)
+			).toMatchObject({
+				name: 'task:active',
+				taskId: 'status-observe-task',
+				kind: 'listener',
+				injectAt: '#status-observe',
+				status: 'active',
+				preStatus: 'pending'
+			});
 		});
 	});
 

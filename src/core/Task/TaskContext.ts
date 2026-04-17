@@ -4,6 +4,7 @@ import { noopObserveEmitter } from '../hooks/util';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
 import { buildResourceObservePayload } from '../payload/buildResourceObservePayload';
+import { buildTaskObservePayload } from '../payload/buildTaskObservePayload';
 import type {
 	ComponentTask,
 	ListenerTask,
@@ -190,10 +191,32 @@ export class TaskContext {
 		if (task.taskStatus === status) {
 			return;
 		}
+		const preStatus = task.taskStatus;
 		task.taskStatus = status;
+		const injectAt = getTaskInjectAt(task);
 
-		this.emit('task:changeStatus', {});
-		status === 'active' && this.emit('task:active', {});
+		this.emit(
+			'task:statusChange',
+			buildTaskObservePayload('task:statusChange', {
+				taskId: id,
+				kind: task.kind,
+				injectAt,
+				status,
+				preStatus
+			})
+		);
+		if (status === 'active') {
+			this.emit(
+				'task:active',
+				buildTaskObservePayload('task:active', {
+					taskId: id,
+					kind: task.kind,
+					injectAt,
+					status: 'active',
+					preStatus
+				})
+			);
+		}
 	}
 
 	/**
