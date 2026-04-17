@@ -6,6 +6,8 @@ import { Action, type ActionEvent, type InjectionConfig } from '../Injector/type
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
 import { buildInjectObservePayload } from '../payload/buildInjectObservePayload';
+import { buildListenerObservePayload } from '../payload/buildListenerObservePayload';
+import { buildRunObservePayload } from '../payload/buildRunObservePayload';
 import { DOMWatcher } from '../watcher/DomWatcher';
 import type { TaskContext } from './TaskContext';
 import type { _InjectResult, Task, TaskListenerFeature } from './types';
@@ -30,11 +32,23 @@ export class TaskRunner {
 	}
 
 	public run(): void {
-		this.emit('run:start', {
-			meta: {
-				totalTasks: this.taskContext.taskRecords.length
+		const runStats = this.taskContext.taskRecords.reduce(
+			(acc, { taskId }) => {
+				const status = this.taskContext.getTaskStatus(taskId);
+				if (status === 'idle') acc.idleTasks += 1;
+				if (status === 'pending') acc.pendingTasks += 1;
+				if (status === 'active') acc.activeTasks += 1;
+				return acc;
+			},
+			{
+				totalTasks: this.taskContext.taskRecords.length,
+				idleTasks: 0,
+				pendingTasks: 0,
+				activeTasks: 0
 			}
-		});
+		);
+
+		this.emit('run:start', buildRunObservePayload('run:start', runStats));
 		if (this.taskContext.taskRecords.length === 0) {
 			throw new Error('No registered tasks found, call register() before run()');
 		}
@@ -46,11 +60,16 @@ export class TaskRunner {
 
 			if (!task || !status) return;
 			if (status === 'active' || status === 'pending') {
-				this.emit('run:taskSkipped', {
-					taskId: id,
-					injectAt,
-					status
-				});
+				this.emit(
+					'run:taskSkipped',
+					buildRunObservePayload('run:taskSkipped', {
+						taskId: id,
+						kind: task.kind,
+						injectAt,
+						status,
+						skipReason: status === 'active' ? 'already-active' : 'already-pending'
+					})
+				);
 				return;
 			}
 
@@ -70,24 +89,37 @@ export class TaskRunner {
 			if (this.taskContext.getTaskStatus(id) !== 'active') {
 				// when the target element is exist, will sync call the func ,so we do not set to pending
 				this.taskContext.setTaskStatus(id, 'pending');
-				this.emit('run:taskScheduled', {
-					taskId: id,
-					injectAt,
-					status: 'pending'
-				});
+				this.emit(
+					'run:taskScheduled',
+					buildRunObservePayload('run:taskScheduled', {
+						taskId: id,
+						kind: task.kind,
+						injectAt,
+						status: 'pending',
+						preStatus: 'idle',
+						timeout: task.timeout
+					})
+				);
 			}
 		});
 	}
 
 	public onTargetReady(targetElement: HTMLElement, taskId: string): void {
-		this.emit('target:ready', {
-			taskId
-		});
 		const context = this.taskContext.get(taskId);
 		if (!context) {
 			this.logger.error(`Task "${taskId}" not found, unable to proceed with injection`);
 			return;
 		}
+
+		this.emit(
+			'target:ready',
+			buildRunObservePayload('target:ready', {
+				taskId,
+				kind: context.kind,
+				injectAt: getTaskInjectAt(context),
+				status: context.taskStatus
+			})
+		);
 
 		if (context.taskStatus === 'active') {
 			return;
@@ -155,11 +187,19 @@ export class TaskRunner {
 			// listener attach fails, not need call setTaskStatus because this one will emit the other event
 			if (result === false) {
 				context.taskStatus = 'idle';
-				this.emit('listener:attachFail', {
-					taskId,
-					injectAt,
-					status: 'idle'
-				});
+				const listener = getTaskListener(context);
+				this.emit(
+					'listener:attachFail',
+					buildListenerObservePayload('listener:attachFail', {
+						taskId,
+						kind: context.kind,
+						injectAt,
+						status: 'idle',
+						error: new Error(`Listener attach failed for task "${taskId}"`),
+						listenerEvent: listener?.event,
+						listenAt: listener?.listenAt
+					})
+				);
 				return;
 			}
 		}
@@ -236,20 +276,34 @@ export class TaskRunner {
 
 				if (newController) {
 					listener.controller = newController;
-					this.emit('listener:open', {
-						taskId,
-						injectAt: listener.listenAt,
-						status: context.taskStatus
-					});
+					this.emit(
+						'listener:open',
+						buildListenerObservePayload('listener:open', {
+							taskId,
+							kind: context.kind,
+							injectAt: listener.listenAt,
+							status: context.taskStatus,
+							listenerEvent: listener.event,
+							listenAt: listener.listenAt
+						})
+					);
 				} else {
-					this.logger.error(
+					const error = new Error(
 						`Failed to attach event "${listener.event}" for task "${taskId}"`
 					);
-					this.emit('listener:attachFail', {
-						taskId,
-						injectAt: listener.listenAt,
-						error: `Failed to attach event "${listener.event}"`
-					});
+					this.logger.error(error.message);
+					this.emit(
+						'listener:attachFail',
+						buildListenerObservePayload('listener:attachFail', {
+							taskId,
+							kind: context.kind,
+							injectAt: listener.listenAt,
+							status: context.taskStatus,
+							error,
+							listenerEvent: listener.event,
+							listenAt: listener.listenAt
+						})
+					);
 					return false;
 				}
 				break;
@@ -262,11 +316,17 @@ export class TaskRunner {
 				listener.controller.abort(); // Abort event listener
 				listener.controller = undefined;
 				this.logger.info(`Event "${listener.event}" detached from task "${taskId}"`);
-				this.emit('listener:close', {
-					taskId,
-					injectAt: listener.listenAt,
-					status: context.taskStatus
-				});
+				this.emit(
+					'listener:close',
+					buildListenerObservePayload('listener:close', {
+						taskId,
+						kind: context.kind,
+						injectAt: listener.listenAt,
+						status: context.taskStatus,
+						listenerEvent: listener.event,
+						listenAt: listener.listenAt
+					})
+				);
 				break;
 			}
 

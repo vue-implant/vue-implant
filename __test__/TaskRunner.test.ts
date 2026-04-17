@@ -41,6 +41,121 @@ describe('TaskRunner', () => {
 		expect(() => taskRunner.run()).toThrow('No registered tasks found');
 	});
 
+	it('should emit normalized run payloads for start, skipped and scheduled', () => {
+		const observer = new ObserverHub();
+		taskRunner = new TaskRunner(
+			taskContext,
+			{
+				alive: false,
+				scope: 'local',
+				timeout: 5000,
+				logger: new Logger(),
+				observer
+			},
+			createObserveEmitter(observer)
+		);
+
+		taskContext.set(
+			'run-idle-task',
+			createComponentTask({
+				taskId: 'run-idle-task',
+				taskStatus: 'idle',
+				componentInjectAt: '#run-idle',
+				timeout: 7000
+			})
+		);
+		taskContext.set(
+			'run-pending-task',
+			createListenerTask({
+				taskId: 'run-pending-task',
+				taskStatus: 'pending',
+				listenAt: '#run-pending',
+				event: 'click',
+				callback: vi.fn(),
+				withEvent: true
+			})
+		);
+		taskContext.set(
+			'run-active-task',
+			createComponentTask({
+				taskId: 'run-active-task',
+				taskStatus: 'active',
+				componentInjectAt: '#run-active'
+			})
+		);
+
+		taskContext.taskRecords.push({ taskId: 'run-idle-task', injectAt: '#run-idle' });
+		taskContext.taskRecords.push({ taskId: 'run-pending-task', injectAt: '#run-pending' });
+		taskContext.taskRecords.push({ taskId: 'run-active-task', injectAt: '#run-active' });
+
+		vi.spyOn(DOMWatcher, 'onDomReady').mockReturnValue(() => {});
+
+		const runEvents: ObserveEvent[] = [];
+		observer.onAny((event) => {
+			if (event.name.startsWith('run:')) {
+				runEvents.push(event);
+			}
+		});
+
+		taskRunner.run();
+
+		expect(runEvents.find((event) => event.name === 'run:start')).toMatchObject({
+			name: 'run:start',
+			meta: {
+				totalTasks: 3,
+				idleTasks: 1,
+				pendingTasks: 1,
+				activeTasks: 1
+			}
+		});
+
+		expect(
+			runEvents.find(
+				(event) => event.name === 'run:taskSkipped' && event.taskId === 'run-pending-task'
+			)
+		).toMatchObject({
+			name: 'run:taskSkipped',
+			taskId: 'run-pending-task',
+			kind: 'listener',
+			injectAt: '#run-pending',
+			status: 'pending',
+			meta: {
+				skipReason: 'already-pending'
+			}
+		});
+
+		expect(
+			runEvents.find(
+				(event) => event.name === 'run:taskSkipped' && event.taskId === 'run-active-task'
+			)
+		).toMatchObject({
+			name: 'run:taskSkipped',
+			taskId: 'run-active-task',
+			kind: 'component',
+			injectAt: '#run-active',
+			status: 'active',
+			meta: {
+				skipReason: 'already-active'
+			}
+		});
+
+		expect(
+			runEvents.find(
+				(event) => event.name === 'run:taskScheduled' && event.taskId === 'run-idle-task'
+			)
+		).toMatchObject({
+			name: 'run:taskScheduled',
+			taskId: 'run-idle-task',
+			kind: 'component',
+			injectAt: '#run-idle',
+			status: 'pending',
+			preStatus: 'idle',
+			meta: {
+				timeout: 7000
+			}
+		});
+	});
+
 	it('should schedule onDomReady and mark task pending on run', () => {
 		taskContext.set(
 			'task-a',
@@ -114,6 +229,50 @@ describe('TaskRunner', () => {
 		expect(task.app).toBeDefined();
 		expect(task.appRoot?.parentElement).toBe(host);
 		expect(task.taskStatus).toBe('active');
+	});
+
+	it('should emit normalized target ready payload', () => {
+		const observer = new ObserverHub();
+		taskRunner = new TaskRunner(
+			taskContext,
+			{
+				alive: false,
+				scope: 'local',
+				timeout: 5000,
+				logger: new Logger(),
+				observer
+			},
+			createObserveEmitter(observer)
+		);
+
+		taskContext.set(
+			'target-ready-listener',
+			createListenerTask({
+				taskId: 'target-ready-listener',
+				taskStatus: 'idle',
+				listenAt: '#target-ready',
+				event: 'click',
+				callback: vi.fn(),
+				withEvent: false
+			})
+		);
+
+		const targetEvents: ObserveEvent[] = [];
+		observer.onAny((event) => {
+			if (event.name === 'target:ready') {
+				targetEvents.push(event);
+			}
+		});
+
+		taskRunner.onTargetReady(document.createElement('div'), 'target-ready-listener');
+
+		expect(targetEvents[0]).toMatchObject({
+			name: 'target:ready',
+			taskId: 'target-ready-listener',
+			kind: 'listener',
+			injectAt: '#target-ready',
+			status: 'idle'
+		});
 	});
 
 	it('should emit normalized inject start and success payloads', () => {
@@ -430,6 +589,145 @@ describe('TaskRunner', () => {
 		expect(taskRunner.controlListener('listener-task', Action.CLOSE)).toBe(true);
 		btn.click();
 		expect(callback).toHaveBeenCalledOnce();
+	});
+
+	it('should emit normalized listener open and close payloads', () => {
+		const observer = new ObserverHub();
+		taskRunner = new TaskRunner(
+			taskContext,
+			{
+				alive: false,
+				scope: 'local',
+				timeout: 5000,
+				logger: new Logger(),
+				observer
+			},
+			createObserveEmitter(observer)
+		);
+
+		const btn = document.createElement('button');
+		btn.id = 'listener-observe-btn';
+		document.body.appendChild(btn);
+
+		taskContext.set(
+			'listener-observe-task',
+			createListenerTask({
+				taskId: 'listener-observe-task',
+				taskStatus: 'idle',
+				withEvent: true,
+				listenAt: '#listener-observe-btn',
+				event: 'click',
+				callback: vi.fn()
+			})
+		);
+
+		const listenerEvents: ObserveEvent[] = [];
+		observer.onAny((event) => {
+			if (event.name.startsWith('listener:')) {
+				listenerEvents.push(event);
+			}
+		});
+
+		expect(taskRunner.controlListener('listener-observe-task', Action.OPEN)).toBe(true);
+		expect(taskRunner.controlListener('listener-observe-task', Action.CLOSE)).toBe(true);
+
+		expect(
+			listenerEvents.find(
+				(event) =>
+					event.name === 'listener:open' && event.taskId === 'listener-observe-task'
+			)
+		).toMatchObject({
+			name: 'listener:open',
+			taskId: 'listener-observe-task',
+			kind: 'listener',
+			injectAt: '#listener-observe-btn',
+			status: 'idle',
+			meta: {
+				listenerEvent: 'click',
+				listenAt: '#listener-observe-btn'
+			}
+		});
+
+		expect(
+			listenerEvents.find(
+				(event) =>
+					event.name === 'listener:close' && event.taskId === 'listener-observe-task'
+			)
+		).toMatchObject({
+			name: 'listener:close',
+			taskId: 'listener-observe-task',
+			kind: 'listener',
+			injectAt: '#listener-observe-btn',
+			status: 'idle',
+			meta: {
+				listenerEvent: 'click',
+				listenAt: '#listener-observe-btn'
+			}
+		});
+	});
+
+	it('should emit normalized listener attachFail payload', () => {
+		const observer = new ObserverHub();
+		taskRunner = new TaskRunner(
+			taskContext,
+			{
+				alive: false,
+				scope: 'local',
+				timeout: 5000,
+				logger: new Logger(),
+				observer
+			},
+			createObserveEmitter(observer)
+		);
+
+		vi.spyOn(
+			taskRunner as unknown as {
+				attachEvent: (
+					id: string,
+					listenAt: string,
+					event: string,
+					callback: EventListener
+				) => AbortController | null;
+			},
+			'attachEvent'
+		).mockImplementation(() => null);
+
+		taskContext.set(
+			'listener-fail-task',
+			createListenerTask({
+				taskId: 'listener-fail-task',
+				taskStatus: 'pending',
+				withEvent: true,
+				listenAt: '#listener-fail-btn',
+				event: 'mouseenter',
+				callback: vi.fn()
+			})
+		);
+
+		const listenerEvents: ObserveEvent[] = [];
+		observer.onAny((event) => {
+			if (event.name.startsWith('listener:')) {
+				listenerEvents.push(event);
+			}
+		});
+
+		expect(taskRunner.controlListener('listener-fail-task', Action.OPEN)).toBe(false);
+
+		const failEvent = listenerEvents.find(
+			(event) => event.name === 'listener:attachFail' && event.taskId === 'listener-fail-task'
+		);
+		expect(failEvent).toMatchObject({
+			name: 'listener:attachFail',
+			taskId: 'listener-fail-task',
+			kind: 'listener',
+			injectAt: '#listener-fail-btn',
+			status: 'pending',
+			meta: {
+				listenerEvent: 'mouseenter',
+				listenAt: '#listener-fail-btn'
+			}
+		});
+		expect(failEvent?.error).toBeInstanceOf(Error);
 	});
 
 	it('should warn and return false when attachEvent fails', () => {
