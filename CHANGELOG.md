@@ -72,3 +72,8 @@
 - add auth tester workflow for NPM/GitHub token validation by @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/24
 - migrate dependency management to `pnpm`, remove `package-lock.json`, and add `pnpm-lock.yaml`
 - update CI/Pages/patch-release workflows to use `pnpm` install/cache/publish pipeline
+
+
+## [1.3.1] - 2026-04-18
+
+- fix the public demo website url in readme.md
