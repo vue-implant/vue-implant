@@ -48,3 +48,27 @@
 ## [1.2.1] - 2026-04-09
 
 - Fix the return issue in TaskRegister
+
+## [1.3.0] - 2026-04-18
+
+### ✨ Features
+
+- **feat(hooks):** add lifecycle hooks support at injector-level (`new Injector({ hooks })`) and component-level (`register(..., { hooks })`), with unified subscribe/unsubscribe APIs (`on`, `onTask`, `onAny`, `off`, `offTask`, `offAny`) by @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/25
+- **feat(observe):** expose normalized lifecycle event model and payload matrix for register/run/inject/listener/alive/task/resource/dom events by @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/25
+
+### 🛠 Fixes
+
+- **fix(alive):** remove `nextTick` async setup window for alive observers and simplify to synchronous setup; remove `aliveEpoch` from runtime and event payloads by @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/26
+- **fix(task):** split task runtime into `ComponentTask` / `ListenerTask` and tighten lifecycle routing and cleanup consistency across `TaskContext`, `TaskRunner`, and `TaskLifeCycle` by @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/25
+- **fix(observe):** normalize and stabilize observe payload builders (`register`, `run`, `inject`, `listener`, `alive`, `task`, `resource`, `dom`) and emit DOM watcher events with named event contracts by @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/25
+
+### 📚 Tests & Docs
+
+- add/refresh unit tests for hooks, payload normalization, task context/lifecycle/runner behaviors, and alive semantics
+- update `README.md` and `README.CN.md` with lifecycle hook usage, event groups, and detailed payload field tables
+
+### 🧰 Tooling & CI
+
+- add auth tester workflow for NPM/GitHub token validation by @FlowingInk in https://github.com/FlowingInk/vue-implant/pull/24
+- migrate dependency management to `pnpm`, remove `package-lock.json`, and add `pnpm-lock.yaml`
+- update CI/Pages/patch-release workflows to use `pnpm` install/cache/publish pipeline
