@@ -35,7 +35,6 @@ export interface ComponentTask extends BaseTask {
 	appRoot?: HTMLElement;
 	instance?: ComponentPublicInstance;
 
-	aliveEpoch?: number;
 	isObserver?: boolean;
 	disableAlive?: () => void;
 

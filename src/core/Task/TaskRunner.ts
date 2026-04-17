@@ -1,5 +1,5 @@
 import type { App, ComponentPublicInstance, Plugin, WatchHandle, WatchSource } from 'vue';
-import { createApp, nextTick, watch } from 'vue';
+import { createApp, watch } from 'vue';
 import { UUID } from '../../util/uuid';
 import type { ObserveEmitter } from '../hooks/type';
 import { Action, type ActionEvent, type InjectionConfig } from '../Injector/types';
@@ -451,57 +451,40 @@ export class TaskRunner {
 			this.logger.info(`Component "${context.componentName}" injected at "${injectAt}"`);
 
 			if (context.alive && !context.isObserver) {
-				const aliveEpoch = context.aliveEpoch ?? 0;
 				// Injection re-injection mechanism
 				// if write 'global', the watcher will observer the document body element
 				// if write 'local', the watcher will observe the matchedElement, which is the component's host element
-				nextTick().then(() => {
-					// if changes happen during async setup, directly return
-					if (
-						!context.alive ||
-						context.aliveEpoch !== aliveEpoch ||
-						context.app !== subApp
-					)
-						return;
-
-					const stopHandler = DOMWatcher.onDomAlive(
-						matchedElement,
-						injectAt,
-						() => {
-							this.taskContext.reset(taskId);
-						},
-						(el): void => this.onTargetReady(el, taskId),
-						context.scope === 'global' ? currentDocument : matchedElement,
-						{
-							once: true,
-							timeout: this.injectConfig.timeout
-						},
-						{
-							logger: this.logger,
-							emit: createDomObserveEmitFactory({
-								emit: this.emit,
-								taskId,
-								kind: context.kind,
-								injectAt,
-								root: context.scope === 'global' ? currentDocument : matchedElement
-							})
-						}
-					);
-
-					// if changes happen during async setup,
-					// do not activate observer and clean up the listener
-					if (
-						!context.alive ||
-						context.aliveEpoch !== aliveEpoch ||
-						context.app !== subApp
-					) {
-						stopHandler();
-						return;
+				const stopHandler = DOMWatcher.onDomAlive(
+					matchedElement,
+					injectAt,
+					() => {
+						this.taskContext.reset(taskId);
+					},
+					(el): void => this.onTargetReady(el, taskId),
+					context.scope === 'global' ? currentDocument : matchedElement,
+					{
+						once: true,
+						timeout: this.injectConfig.timeout
+					},
+					{
+						logger: this.logger,
+						emit: createDomObserveEmitFactory({
+							emit: this.emit,
+							taskId,
+							kind: context.kind,
+							injectAt,
+							root: context.scope === 'global' ? currentDocument : matchedElement
+						})
 					}
+				);
+
+				if (!context.alive || context.app !== subApp) {
+					stopHandler();
+				} else {
 					context.disableAlive = stopHandler;
 					context.isObserver = true;
 					this.logger.info(`Task "${taskId}" alive observer activated`);
-				});
+				}
 			}
 
 			return {

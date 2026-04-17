@@ -362,10 +362,10 @@ injector.register('#app', App, {
 | `listener:open` | `taskId`, `kind`, `injectAt`, `status`, `meta.listenerEvent`, `meta.listenAt` |
 | `listener:close` | `taskId`, `kind`, `injectAt`, `status`, `meta.listenerEvent`, `meta.listenAt` |
 | `listener:attachFail` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.listenerEvent`, `meta.listenAt` |
-| `alive:enable` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch` |
-| `alive:disable` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch` |
-| `alive:observeStart` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch`, `meta.observerMode` |
-| `alive:observeStop` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.aliveEpoch`, `meta.observerMode` |
+| `alive:enable` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope` |
+| `alive:disable` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope` |
+| `alive:observeStart` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.observerMode` |
+| `alive:observeStop` | `taskId`, `kind`, `injectAt`, `status`, `meta.scope`, `meta.observerMode` |
 | `task:statusChange` | `taskId`, `kind`, `injectAt`, `status`, `preStatus` |
 | `task:active` | `taskId`, `kind`, `injectAt`, `status`, `preStatus` |
 | `task:beforeReset` | `taskId`, `kind`, `injectAt`, `status` |
@@ -398,7 +398,7 @@ injector.register('#app', App, {
 - 大多数任务相关事件都提供规范化基础字段：`taskId`、`kind`、`injectAt`、`status`。
 - 状态迁移事件提供 `preStatus`（例如：`task:statusChange`、`task:active`、`task:afterReset`、`task:afterDestroy`）。
 - 耗时类事件提供 `durationMs`（例如：`dom:readyFound`、`dom:readyTimeout`、`dom:restored`）。
-- 事件专属信息放入 `meta`（例如：`run:start` 统计、`listener:*` 绑定信息、`alive:*` scope/epoch/mode）。
+- 事件专属信息放入 `meta`（例如：`run:start` 统计、`listener:*` 绑定信息、`alive:*` scope/mode）。
 - DOM watcher 事件由运行时工厂注入任务上下文，`DOMWatcher` 本身保持业务无关。
 
 ### `Injector.enableAlive(taskId: string): void`

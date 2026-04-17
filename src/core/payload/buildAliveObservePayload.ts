@@ -16,7 +16,6 @@ type AliveObserveBase = {
 	injectAt: string;
 	status: TaskStatus;
 	scope: 'local' | 'global';
-	aliveEpoch: number;
 };
 
 type AliveObserveInputByName = {
@@ -31,21 +30,18 @@ type AliveObservePayloadByName = {
 		kind: 'component';
 		meta: {
 			scope: 'local' | 'global';
-			aliveEpoch: number;
 		};
 	};
 	'alive:disable': Omit<ObserveEvent, 'name' | 'ts'> & {
 		kind: 'component';
 		meta: {
 			scope: 'local' | 'global';
-			aliveEpoch: number;
 		};
 	};
 	'alive:observeStart': Omit<ObserveEvent, 'name' | 'ts'> & {
 		kind: 'component';
 		meta: {
 			scope: 'local' | 'global';
-			aliveEpoch: number;
 			observerMode: AliveObserverMode;
 		};
 	};
@@ -53,7 +49,6 @@ type AliveObservePayloadByName = {
 		kind: 'component';
 		meta: {
 			scope: 'local' | 'global';
-			aliveEpoch: number;
 			observerMode: AliveObserverMode;
 		};
 	};
@@ -66,8 +61,7 @@ const aliveObservePayloadBuilders = {
 		injectAt: input.injectAt,
 		status: input.status,
 		meta: {
-			scope: input.scope,
-			aliveEpoch: input.aliveEpoch
+			scope: input.scope
 		}
 	}),
 	'alive:disable': (input) => ({
@@ -76,8 +70,7 @@ const aliveObservePayloadBuilders = {
 		injectAt: input.injectAt,
 		status: input.status,
 		meta: {
-			scope: input.scope,
-			aliveEpoch: input.aliveEpoch
+			scope: input.scope
 		}
 	}),
 	'alive:observeStart': (input) => ({
@@ -87,7 +80,6 @@ const aliveObservePayloadBuilders = {
 		status: input.status,
 		meta: {
 			scope: input.scope,
-			aliveEpoch: input.aliveEpoch,
 			observerMode: input.observerMode
 		}
 	}),
@@ -98,7 +90,6 @@ const aliveObservePayloadBuilders = {
 		status: input.status,
 		meta: {
 			scope: input.scope,
-			aliveEpoch: input.aliveEpoch,
 			observerMode: input.observerMode
 		}
 	})

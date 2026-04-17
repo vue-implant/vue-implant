@@ -185,7 +185,6 @@ export class TaskRegister {
 				withEvent: false,
 
 				alive,
-				aliveEpoch: 0,
 				scope,
 				timeout,
 				isObserver: false,

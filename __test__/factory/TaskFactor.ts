@@ -28,7 +28,6 @@ export type CreateComponentTaskInput = TaskBaseInput & {
 	app?: App<Element>;
 	appRoot?: HTMLElement;
 	instance?: ComponentPublicInstance;
-	aliveEpoch?: number;
 	isObserver?: boolean;
 	disableAlive?: () => void;
 };
@@ -63,7 +62,6 @@ export function createTask(input: CreateComponentTaskInput | CreateListenerTaskI
 			...(input.app ? { app: input.app } : {}),
 			...(input.appRoot ? { appRoot: input.appRoot } : {}),
 			...(input.instance ? { instance: input.instance } : {}),
-			...(input.aliveEpoch !== undefined ? { aliveEpoch: input.aliveEpoch } : {}),
 			...(input.isObserver !== undefined ? { isObserver: input.isObserver } : {}),
 			...(input.disableAlive ? { disableAlive: input.disableAlive } : {})
 		};

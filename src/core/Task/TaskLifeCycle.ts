@@ -1,4 +1,3 @@
-import { nextTick } from 'vue';
 import type { ObserveEmitter } from '../hooks/type';
 import type { InjectionConfig } from '../Injector/types';
 import { Logger } from '../logger/Logger';
@@ -51,8 +50,6 @@ export class TaskLifeCycle {
 			return;
 		}
 
-		const aliveEpoch = (context.aliveEpoch ?? 0) + 1;
-		context.aliveEpoch = aliveEpoch;
 		context.alive = true;
 		context.isObserver = false;
 		this.emit(
@@ -62,8 +59,7 @@ export class TaskLifeCycle {
 				kind: 'component',
 				injectAt: context.componentInjectAt,
 				status: context.taskStatus,
-				scope: context.scope,
-				aliveEpoch
+				scope: context.scope
 			})
 		);
 		// placeholder stop handler for pending async setup
@@ -82,53 +78,48 @@ export class TaskLifeCycle {
 			const currentDocument = matchedElement.ownerDocument || document;
 			const injectAt = context.componentInjectAt;
 
-			nextTick().then(() => {
-				if (!context.alive || context.aliveEpoch !== aliveEpoch) return;
-
-				const stopHandler = DOMWatcher.onDomAlive(
-					matchedElement,
-					injectAt,
-					() => {
-						this.taskContext.reset(taskId);
-					},
-					(el): void => this.onTargetReady(el, taskId),
-					context.scope === 'global' ? currentDocument : matchedElement,
-					{
-						once: true,
-						timeout: this.injectConfig.timeout
-					},
-					{
-						logger: this.logger,
-						emit: createDomObserveEmitFactory({
-							emit: this.emit,
-							taskId,
-							kind: 'component',
-							injectAt,
-							root: context.scope === 'global' ? currentDocument : matchedElement
-						})
-					}
-				);
-
-				if (!context.alive || context.aliveEpoch !== aliveEpoch) {
-					stopHandler();
-					return;
-				}
-				context.disableAlive = stopHandler;
-				context.isObserver = true;
-				this.emit(
-					'alive:observeStart',
-					buildAliveObservePayload('alive:observeStart', {
+			const stopHandler = DOMWatcher.onDomAlive(
+				matchedElement,
+				injectAt,
+				() => {
+					this.taskContext.reset(taskId);
+				},
+				(el): void => this.onTargetReady(el, taskId),
+				context.scope === 'global' ? currentDocument : matchedElement,
+				{
+					once: true,
+					timeout: this.injectConfig.timeout
+				},
+				{
+					logger: this.logger,
+					emit: createDomObserveEmitFactory({
+						emit: this.emit,
 						taskId,
 						kind: 'component',
 						injectAt,
-						status: context.taskStatus,
-						scope: context.scope,
-						aliveEpoch,
-						observerMode: 'mounted'
+						root: context.scope === 'global' ? currentDocument : matchedElement
 					})
-				);
-				this.logger.info(`Task "${taskId}" alive observer activated`);
-			});
+				}
+			);
+
+			if (!context.alive) {
+				stopHandler();
+				return;
+			}
+			context.disableAlive = stopHandler;
+			context.isObserver = true;
+			this.emit(
+				'alive:observeStart',
+				buildAliveObservePayload('alive:observeStart', {
+					taskId,
+					kind: 'component',
+					injectAt,
+					status: context.taskStatus,
+					scope: context.scope,
+					observerMode: 'mounted'
+				})
+			);
+			this.logger.info(`Task "${taskId}" alive observer activated`);
 			return;
 		}
 
@@ -146,9 +137,9 @@ export class TaskLifeCycle {
 			const stopReadyObserver = DOMWatcher.onDomReady(
 				context.componentInjectAt,
 				(el): void => {
-					if (cancelled || !context.alive || context.aliveEpoch !== aliveEpoch) {
+					if (cancelled || !context.alive) {
 						this.logger.warn(
-							`Task "${taskId}" alive epoch changed before element appears`
+							`Task "${taskId}" alive state changed before element appears`
 						);
 						return;
 					}
@@ -178,7 +169,6 @@ export class TaskLifeCycle {
 						injectAt: context.componentInjectAt,
 						status: context.taskStatus,
 						scope: context.scope,
-						aliveEpoch,
 						observerMode: 'await-target'
 					})
 				);
@@ -193,7 +183,6 @@ export class TaskLifeCycle {
 					injectAt: context.componentInjectAt,
 					status: context.taskStatus,
 					scope: context.scope,
-					aliveEpoch,
 					observerMode: 'await-target'
 				})
 			);
@@ -220,8 +209,6 @@ export class TaskLifeCycle {
 			return;
 		}
 
-		context.aliveEpoch = (context.aliveEpoch ?? 0) + 1;
-		const aliveEpoch = context.aliveEpoch;
 		const stopHandler = context.disableAlive;
 		context.alive = false;
 		context.isObserver = false;
@@ -234,8 +221,7 @@ export class TaskLifeCycle {
 				kind: 'component',
 				injectAt: context.componentInjectAt,
 				status: context.taskStatus,
-				scope: context.scope,
-				aliveEpoch
+				scope: context.scope
 			})
 		);
 		this.emit(
@@ -246,7 +232,6 @@ export class TaskLifeCycle {
 				injectAt: context.componentInjectAt,
 				status: context.taskStatus,
 				scope: context.scope,
-				aliveEpoch,
 				observerMode: context.app ? 'mounted' : 'await-target'
 			})
 		);

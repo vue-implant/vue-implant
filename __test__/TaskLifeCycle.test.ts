@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { type App, nextTick } from 'vue';
+import { type App } from 'vue';
 import { ObserverHub } from '../src/core/hooks/ObserverHub';
 import type { ObserveEvent } from '../src/core/hooks/type';
 import { createObserveEmitter } from '../src/core/hooks/util';
@@ -81,7 +81,7 @@ describe('TaskLifeCycle', () => {
 		);
 	});
 
-	it('should start onDomAlive in enableAlive case 1 (mounted and connected)', async () => {
+	it('should start onDomAlive in enableAlive case 1 (mounted and connected)', () => {
 		const host = document.createElement('div');
 		host.id = 'mounted-host';
 		document.body.appendChild(host);
@@ -100,7 +100,6 @@ describe('TaskLifeCycle', () => {
 				appRoot,
 				alive: false,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
@@ -109,14 +108,13 @@ describe('TaskLifeCycle', () => {
 		const aliveSpy = vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(stopHandler);
 
 		lifeCycle.enableAlive('mounted-task');
-		await nextTick();
 
 		expect(aliveSpy).toHaveBeenCalledOnce();
 		expect(taskContext.get<ComponentTask>('mounted-task')?.disableAlive).toBe(stopHandler);
 		expect(taskContext.get<ComponentTask>('mounted-task')?.isObserver).toBe(true);
 	});
 
-	it('should call reset and onTargetReady from onDomAlive callbacks in case 1', async () => {
+	it('should call reset and onTargetReady from onDomAlive callbacks in case 1', () => {
 		const host = document.createElement('div');
 		host.id = 'mounted-host-callback';
 		document.body.appendChild(host);
@@ -135,7 +133,6 @@ describe('TaskLifeCycle', () => {
 				appRoot,
 				alive: false,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
@@ -150,7 +147,6 @@ describe('TaskLifeCycle', () => {
 			});
 
 		lifeCycle.enableAlive('mounted-callback-task');
-		await nextTick();
 
 		expect(aliveSpy).toHaveBeenCalledOnce();
 		expect(resetSpy).toHaveBeenCalledWith('mounted-callback-task');
@@ -180,7 +176,6 @@ describe('TaskLifeCycle', () => {
 				appRoot,
 				alive: false,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
@@ -197,8 +192,9 @@ describe('TaskLifeCycle', () => {
 		expect(taskContext.get<ComponentTask>('shadow-task')?.isObserver).toBe(false);
 	});
 
-	it('should abort setup and call the returned stopHandler if alive was cancelled during nextTick', async () => {
-		const onDomAliveSpy = vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(vi.fn());
+	it('should stop mounted alive observer when disabled right after setup', () => {
+		const stopHandler = vi.fn();
+		const onDomAliveSpy = vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(stopHandler);
 		const appRoot = document.createElement('div');
 		appRoot.id = 'app';
 		document.body.appendChild(appRoot);
@@ -213,25 +209,19 @@ describe('TaskLifeCycle', () => {
 				componentInjectAt: '#app',
 				component: { name: 'AliveComp' },
 				app: { unmount: vi.fn() } as unknown as App,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
 
-		// Cancel alive synchronously before nextTick fires,
-		// simulating "alive was cancelled during nextTick"
 		lifeCycle.enableAlive('alive-task');
 		lifeCycle.disableAlive('alive-task');
 
-		await nextTick();
-
-		// The first guard (!context.alive) in the nextTick callback should
-		// short-circuit immediately, so onDomAlive must never be called
-		expect(onDomAliveSpy).not.toHaveBeenCalled();
+		expect(onDomAliveSpy).toHaveBeenCalledOnce();
+		expect(stopHandler).toHaveBeenCalledOnce();
 		expect(taskContext.get<ComponentTask>('alive-task')?.isObserver).toBe(false);
 	});
 
-	it('should abort setup if aliveEpoch changed during nextTick (stale epoch guard)', async () => {
+	it('should keep mounted observer active when setup succeeds', () => {
 		const appRoot = document.createElement('div');
 		appRoot.id = 'app';
 		document.body.appendChild(appRoot);
@@ -246,30 +236,18 @@ describe('TaskLifeCycle', () => {
 				componentInjectAt: '#app',
 				component: { name: 'AliveComp' },
 				app: { unmount: vi.fn() } as unknown as App,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
 
 		const fakeStopHandler = vi.fn();
-		// Simulate epoch changing after onDomAlive returns but before the second guard check.
-		// Mutating epoch directly avoids recursive enableAlive scheduling.
-		vi.spyOn(DOMWatcher, 'onDomAlive').mockImplementation(() => {
-			const ctx = taskContext.get<ComponentTask>('alive-task');
-			if (ctx?.aliveEpoch) {
-				ctx.aliveEpoch += 1;
-			}
-			return fakeStopHandler;
-		});
+		const onDomAliveSpy = vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(fakeStopHandler);
 
 		lifeCycle.enableAlive('alive-task');
-		await nextTick();
 
-		// The second guard inside the nextTick callback detects a stale epoch and
-		// must call the returned stopHandler to clean up the observer
-		expect(fakeStopHandler).toHaveBeenCalledOnce();
-		// isObserver must remain false because the stale setup was aborted
-		expect(taskContext.get<ComponentTask>('alive-task')?.isObserver).toBe(false);
+		expect(onDomAliveSpy).toHaveBeenCalledOnce();
+		expect(fakeStopHandler).not.toHaveBeenCalled();
+		expect(taskContext.get<ComponentTask>('alive-task')?.isObserver).toBe(true);
 	});
 
 	it('should reset and then onDomReady in enableAlive case 2 (disconnected appRoot)', () => {
@@ -290,7 +268,6 @@ describe('TaskLifeCycle', () => {
 				appRoot,
 				alive: false,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
@@ -315,7 +292,6 @@ describe('TaskLifeCycle', () => {
 				component: { name: 'Case3Comp' },
 				alive: false,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
@@ -343,7 +319,6 @@ describe('TaskLifeCycle', () => {
 				component: { name: 'Case3CancelledComp' },
 				alive: false,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
@@ -360,12 +335,12 @@ describe('TaskLifeCycle', () => {
 		readyCallback?.(document.createElement('div'));
 
 		expect(warnSpy).toHaveBeenCalledWith(
-			expect.stringContaining('alive epoch changed before element appears')
+			expect.stringContaining('alive state changed before element appears')
 		);
 		expect(onTargetReady).not.toHaveBeenCalled();
 	});
 
-	it('should warn and skip onTargetReady when case 3 callback sees stale aliveEpoch', () => {
+	it('should warn and skip onTargetReady when case 3 callback sees inactive alive state', () => {
 		taskContext.set(
 			'case3-stale-task',
 			createComponentTask({
@@ -375,7 +350,6 @@ describe('TaskLifeCycle', () => {
 				component: { name: 'Case3StaleComp' },
 				alive: false,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
@@ -389,13 +363,13 @@ describe('TaskLifeCycle', () => {
 
 		lifeCycle.enableAlive('case3-stale-task');
 		const context = taskContext.get<ComponentTask>('case3-stale-task');
-		if (context?.aliveEpoch) {
-			context.aliveEpoch += 1;
+		if (context) {
+			context.alive = false;
 		}
 		readyCallback?.(document.createElement('div'));
 
 		expect(warnSpy).toHaveBeenCalledWith(
-			expect.stringContaining('alive epoch changed before element appears')
+			expect.stringContaining('alive state changed before element appears')
 		);
 		expect(onTargetReady).not.toHaveBeenCalled();
 	});
@@ -413,7 +387,6 @@ describe('TaskLifeCycle', () => {
 				component: { name: 'CancelComp' },
 				alive: false,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
@@ -436,7 +409,6 @@ describe('TaskLifeCycle', () => {
 				component: { name: 'DisableComp' },
 				alive: true,
 				isObserver: true,
-				aliveEpoch: 2,
 				disableAlive: stop
 			})
 		);
@@ -448,7 +420,6 @@ describe('TaskLifeCycle', () => {
 		expect(context?.alive).toBe(false);
 		expect(context?.isObserver).toBe(false);
 		expect(context?.disableAlive).toBeUndefined();
-		expect(context?.aliveEpoch).toBe(3);
 	});
 
 	it('should warn when disableAlive task is missing', () => {
@@ -579,7 +550,7 @@ describe('TaskLifeCycle', () => {
 		expect(resetAllSpy).toHaveBeenCalledOnce();
 	});
 
-	it('should emit alive and task lifecycle events', async () => {
+	it('should emit alive and task lifecycle events', () => {
 		const observer = new ObserverHub();
 		const events: string[] = [];
 		observer.onAny((event) => {
@@ -615,7 +586,6 @@ describe('TaskLifeCycle', () => {
 				appRoot,
 				alive: false,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
@@ -623,7 +593,6 @@ describe('TaskLifeCycle', () => {
 		vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(() => {});
 
 		lifecycleWithObserver.enableAlive('obs-life-task');
-		await nextTick();
 		lifecycleWithObserver.disableAlive('obs-life-task');
 		lifecycleWithObserver.reset('obs-life-task');
 		lifecycleWithObserver.destroy('obs-life-task');
@@ -640,7 +609,7 @@ describe('TaskLifeCycle', () => {
 		expect(events).toContain('task:afterDestroy');
 	});
 
-	it('should emit normalized alive payloads for mounted observer mode', async () => {
+	it('should emit normalized alive payloads for mounted observer mode', () => {
 		const observer = new ObserverHub();
 		const lifecycleWithObserver = new TaskLifeCycle(
 			taskContext,
@@ -672,7 +641,6 @@ describe('TaskLifeCycle', () => {
 				appRoot,
 				alive: false,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'global'
 			})
 		);
@@ -687,7 +655,6 @@ describe('TaskLifeCycle', () => {
 		});
 
 		lifecycleWithObserver.enableAlive('alive-mounted-task');
-		await nextTick();
 		lifecycleWithObserver.disableAlive('alive-mounted-task');
 
 		expect(aliveEvents.find((event) => event.name === 'alive:enable')).toMatchObject({
@@ -697,8 +664,7 @@ describe('TaskLifeCycle', () => {
 			injectAt: '#alive-mounted-host',
 			status: 'idle',
 			meta: {
-				scope: 'global',
-				aliveEpoch: 1
+				scope: 'global'
 			}
 		});
 
@@ -715,7 +681,6 @@ describe('TaskLifeCycle', () => {
 			status: 'idle',
 			meta: {
 				scope: 'global',
-				aliveEpoch: 1,
 				observerMode: 'mounted'
 			}
 		});
@@ -727,8 +692,7 @@ describe('TaskLifeCycle', () => {
 			injectAt: '#alive-mounted-host',
 			status: 'idle',
 			meta: {
-				scope: 'global',
-				aliveEpoch: 2
+				scope: 'global'
 			}
 		});
 
@@ -745,7 +709,6 @@ describe('TaskLifeCycle', () => {
 			status: 'idle',
 			meta: {
 				scope: 'global',
-				aliveEpoch: 2,
 				observerMode: 'mounted'
 			}
 		});
@@ -775,7 +738,6 @@ describe('TaskLifeCycle', () => {
 				component: { name: 'AliveAwaitComp' },
 				alive: false,
 				isObserver: false,
-				aliveEpoch: 0,
 				scope: 'local'
 			})
 		);
@@ -806,7 +768,6 @@ describe('TaskLifeCycle', () => {
 			status: 'idle',
 			meta: {
 				scope: 'local',
-				aliveEpoch: 1,
 				observerMode: 'await-target'
 			}
 		});
@@ -818,8 +779,7 @@ describe('TaskLifeCycle', () => {
 			injectAt: '#alive-await-host',
 			status: 'idle',
 			meta: {
-				scope: 'local',
-				aliveEpoch: 2
+				scope: 'local'
 			}
 		});
 
