@@ -1,10 +1,11 @@
-import type { ComponentTask, Task, TaskListenerFeature } from './types';
+import type { ArtifactTask, Task, TaskListenerFeature } from './types';
 
-export function isComponentTask(task: Task): task is ComponentTask {
+export function isArtifactTask(task: Task): task is ArtifactTask {
 	return task.kind === 'component';
 }
+
 export function getTaskInjectAt(task: Task): string {
-	return isComponentTask(task) ? task.componentInjectAt : task.listenAt;
+	return isArtifactTask(task) ? task.injectAt : task.listenAt;
 }
 
 export function getTaskListener(task: Task): TaskListenerFeature | undefined {
@@ -12,7 +13,7 @@ export function getTaskListener(task: Task): TaskListenerFeature | undefined {
 		return undefined;
 	}
 
-	const listener = isComponentTask(task) ? task.listener : task;
+	const listener = isArtifactTask(task) ? task.listener : task;
 	if (!listener?.listenAt || !listener.event || !listener.callback) {
 		return undefined;
 	}

@@ -6,7 +6,8 @@ import { createObserveEmitter } from '../src/core/hooks/util';
 import { Logger } from '../src/core/logger/Logger';
 import { TaskContext } from '../src/core/Task/TaskContext';
 import { TaskRegister } from '../src/core/Task/TaskRegister';
-import { createTask } from './factory/TaskFactor';
+import type { ArtifactTask } from '../src/core/Task/types';
+import { createTask, createVueComponent } from './factory/TaskFactor';
 
 describe('TaskRegister', () => {
 	let taskContext: TaskContext;
@@ -30,7 +31,7 @@ describe('TaskRegister', () => {
 	});
 
 	it('should register a component task with defaults', () => {
-		const component = { name: 'CompA' };
+		const component = createVueComponent('CompA');
 		const result = taskRegister.register('#app', component);
 		const context = taskContext.get(result.taskId);
 
@@ -38,9 +39,9 @@ describe('TaskRegister', () => {
 		expect(context).toMatchObject({
 			kind: 'component',
 			taskId: 'CompA@#app',
-			componentName: 'CompA',
-			componentInjectAt: '#app',
-			component,
+			artifactName: 'CompA',
+			injectAt: '#app',
+			artifact: component,
 			timeout: 5000,
 			isObserver: false,
 			adapter: {
@@ -53,16 +54,16 @@ describe('TaskRegister', () => {
 	});
 
 	it('should use option override for alive and scope', () => {
-		const component = { name: 'CompB' };
+		const component = createVueComponent('CompB');
 		const result = taskRegister.register('#root', component, { alive: true, scope: 'global' });
 		const context = taskContext.get(result.taskId);
 
 		expect(context).toMatchObject({
 			kind: 'component',
 			taskId: 'CompB@#root',
-			componentName: 'CompB',
-			componentInjectAt: '#root',
-			component,
+			artifactName: 'CompB',
+			injectAt: '#root',
+			artifact: component,
 			alive: true,
 			scope: 'global',
 			timeout: 5000,
@@ -76,7 +77,7 @@ describe('TaskRegister', () => {
 	});
 
 	it('should store event config and activity signal when provided', () => {
-		const component = { name: 'CompC' };
+		const component = createVueComponent('CompC');
 		const signal = ref(true);
 		const activitySignal = () => signal;
 		const callback = vi.fn();
@@ -94,9 +95,9 @@ describe('TaskRegister', () => {
 		expect(context).toMatchObject({
 			kind: 'component',
 			taskId: 'CompC@#event-host',
-			componentName: 'CompC',
-			componentInjectAt: '#event-host',
-			component,
+			artifactName: 'CompC',
+			injectAt: '#event-host',
+			artifact: component,
 			withEvent: true,
 			timeout: 5000,
 			isObserver: false,
@@ -114,11 +115,41 @@ describe('TaskRegister', () => {
 		});
 	});
 
-	it('should return existing result for duplicate component registration', () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	it('should register an artifact task with a custom adapter', () => {
+		const artifact = createVueComponent('NativeBadge');
 
-		const first = taskRegister.register('#dup', { name: 'CompDup' });
-		const second = taskRegister.register('#dup', { name: 'CompDup' });
+		const result = taskRegister.register('#native-host', artifact, {
+			artifactName: 'NativeBadge',
+			alive: true,
+			scope: 'global'
+		});
+		const context = taskContext.get<ArtifactTask>(result.taskId);
+
+		expect(result).toEqual({ taskId: 'NativeBadge@#native-host', isSuccess: true });
+		expect(context).toMatchObject({
+			kind: 'component',
+			taskId: 'NativeBadge@#native-host',
+			artifactName: 'NativeBadge',
+			injectAt: '#native-host',
+			artifact,
+			adapter: {
+				name: 'vue',
+				mount: expect.any(Function),
+				unmount: expect.any(Function)
+			},
+			alive: true,
+			scope: 'global',
+			timeout: 5000,
+			isObserver: false
+		});
+	});
+
+	it('should return existing result for duplicate component registration', () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+
+		const component = createVueComponent('CompDup');
+		const first = taskRegister.register('#dup', component);
+		const second = taskRegister.register('#dup', component);
 
 		expect(second).toEqual(first);
 		expect(taskContext.taskRecords).toHaveLength(1);
@@ -126,7 +157,7 @@ describe('TaskRegister', () => {
 	});
 
 	it('should reuse generated anonymous name for same component reference', () => {
-		const anonymous = {};
+		const anonymous = createVueComponent('anonymous');
 		const a = taskRegister.register('#a', anonymous);
 		const b = taskRegister.register('#b', anonymous);
 
@@ -153,7 +184,7 @@ describe('TaskRegister', () => {
 	});
 
 	it('should return existing result for duplicate listener registration', () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 
 		const first = taskRegister.registerListener('#btn', 'click', vi.fn());
 		const second = taskRegister.registerListener('#btn', 'click', vi.fn());
@@ -183,8 +214,9 @@ describe('TaskRegister', () => {
 			}
 		});
 
-		const first = registerWithObserver.register('#obs', { name: 'ObsComp' });
-		registerWithObserver.register('#obs', { name: 'ObsComp' });
+		const component = createVueComponent('ObsComp');
+		const first = registerWithObserver.register('#obs', component);
+		registerWithObserver.register('#obs', component);
 
 		expect(events).toHaveLength(4);
 
@@ -370,7 +402,7 @@ describe('TaskRegister', () => {
 			}
 		});
 
-		registerWithObserver.register('#obs', { name: 'ObsComp' });
+		registerWithObserver.register('#obs', createVueComponent('ObsComp'));
 
 		const errorEvent = events.find((event) => event.name === 'register:error');
 		expect(errorEvent).toBeDefined();

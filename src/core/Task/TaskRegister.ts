@@ -1,15 +1,20 @@
-import type { Component, Ref } from 'vue';
-import { getComponentName } from '../../util/getComponentName';
-import { markRawComponent } from '../../util/markRawComponent';
-import { createVueAdapter } from '../adapter/VueAdapter';
+import { getArtifactName } from '../../util/getArtifactName';
+import { adapter } from '../adapter/Adapter';
 import type { ObserveEmitter } from '../hooks/type';
 import { registerHooks } from '../hooks/util';
-import type { ComponentOptions, InjectionConfig } from '../Injector/types';
+import type { ArtifactOptions, InjectionConfig } from '../Injector/types';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
 import { buildRegisterObservePayload } from '../payload/buildRegisterObservePayload';
 import type { TaskContext } from './TaskContext';
-import type { _RegisterResult, ListenerRegisterResult, Task, TaskListenerFeature } from './types';
+import type {
+	_RegisterResult,
+	ArtifactTask,
+	ListenerRegisterResult,
+	Task,
+	TaskActivitySignal,
+	TaskListenerFeature
+} from './types';
 
 export class TaskRegister {
 	private readonly taskContext: TaskContext;
@@ -29,16 +34,15 @@ export class TaskRegister {
 		this.logger = logger ?? injectConfig.logger ?? new Logger();
 	}
 
-	private getTaskId(component: Component, selector: string): string {
-		const name: string = getComponentName(component);
-		return name ? `${name}@${selector}` : `component-${selector}`;
+	private getTaskId(artifactName: string, selector: string): string {
+		return artifactName ? `${artifactName}@${selector}` : `artifact-${selector}`;
 	}
 
 	public registerListener(
 		listenAt: string,
 		event: string,
 		callback: EventListener,
-		activitySignal?: () => Ref<boolean>
+		activitySignal?: TaskActivitySignal
 	): ListenerRegisterResult {
 		const id: string = `listener-${listenAt}-${event}`;
 		this.emit(
@@ -125,19 +129,25 @@ export class TaskRegister {
 			};
 		}
 	}
-	public register(
+
+	public register<TArtifact>(
 		injectAt: string,
-		component: Component,
-		option?: ComponentOptions
+		artifact: TArtifact,
+		option?: ArtifactOptions
 	): _RegisterResult {
-		const componentName = getComponentName(component);
-		const taskId: string = this.getTaskId(component, injectAt);
+		const artifactName = option?.artifactName ?? getArtifactName(artifact);
+		const taskId: string = this.getTaskId(artifactName, injectAt);
 		const withEvent = Boolean(option?.on);
 		const listenerEvent = option?.on?.type;
 		const listenAt = option?.on?.listenAt;
 		const alive = option?.alive ?? this.injectConfig.alive;
 		const scope = option?.scope ?? this.injectConfig.scope;
 		const timeout = option?.timeout ?? this.injectConfig.timeout;
+		const mountAdapter = adapter(artifact);
+		if (!mountAdapter) {
+			throw new Error(`No adapter found for artifact: ${artifactName}`);
+		}
+
 		this.emit(
 			'register:start',
 			buildRegisterObservePayload('register:start', {
@@ -145,7 +155,7 @@ export class TaskRegister {
 				kind: 'component',
 				injectAt,
 				status: 'idle',
-				componentName,
+				componentName: artifactName,
 				listenerEvent,
 				listenAt,
 				alive,
@@ -157,7 +167,6 @@ export class TaskRegister {
 
 		try {
 			if (this.taskContext.has(taskId)) {
-				// Component already registered, return directly
 				this.logger.warn(`Task "${taskId}" is already registered, skipping`);
 				this.emit(
 					'register:duplicate',
@@ -166,33 +175,28 @@ export class TaskRegister {
 						kind: 'component',
 						injectAt,
 						status: this.taskContext.getTaskStatus(taskId) ?? 'idle',
-						componentName
+						componentName: artifactName
 					})
 				);
 				return {
-					taskId: taskId,
+					taskId,
 					isSuccess: true
 				};
 			}
-			// Use unified Task to store all information
-			const context: Task = {
+
+			const context: ArtifactTask<TArtifact> = {
 				taskId,
 				taskStatus: 'idle',
 				kind: 'component',
-
-				componentName,
-				componentInjectAt: injectAt,
-				component: markRawComponent(component),
-				adapter: createVueAdapter({
-					getPlugins: () => this.taskContext.getPlugins()
-				}),
+				artifactName,
+				injectAt,
+				artifact,
+				adapter: mountAdapter,
 				withEvent: false,
-
 				alive,
 				scope,
 				timeout,
 				isObserver: false,
-
 				hooks: option?.hooks
 			};
 
@@ -204,7 +208,6 @@ export class TaskRegister {
 				};
 				context.withEvent = true;
 
-				// Extract activity signal
 				if (option.on.activitySignal) {
 					listener.activitySignal = option.on.activitySignal;
 				}
@@ -212,15 +215,14 @@ export class TaskRegister {
 				context.listener = listener;
 			}
 
-			// register task level hook
 			if (this.injectConfig.observer && option?.hooks) {
 				registerHooks(this.injectConfig.observer, option.hooks, taskId);
 			}
 
-			this.taskContext.set(taskId, context);
+			this.taskContext.set(taskId, context as Task);
 			this.taskContext.taskRecords.push({
-				taskId: taskId,
-				injectAt: injectAt
+				taskId,
+				injectAt
 			});
 
 			this.logger.info(`Task "${taskId}" registered`);
@@ -232,7 +234,7 @@ export class TaskRegister {
 					kind: 'component',
 					injectAt,
 					status: 'idle',
-					componentName,
+					componentName: artifactName,
 					listenerEvent,
 					listenAt,
 					alive,
@@ -243,7 +245,7 @@ export class TaskRegister {
 			);
 
 			return {
-				taskId: taskId,
+				taskId,
 				isSuccess: true
 			};
 		} catch (error) {
@@ -255,7 +257,7 @@ export class TaskRegister {
 					injectAt,
 					status: this.taskContext.getTaskStatus(taskId) ?? 'idle',
 					error,
-					componentName
+					componentName: artifactName
 				})
 			);
 			return {

@@ -12,6 +12,13 @@ export type {
 	MountAdapter
 } from './core/adapter/types';
 export type {
+	CreateVueAdapterOptions,
+	VueMountArtifact,
+	VueMountHandle,
+	VueMountInstance
+} from './core/adapter/vue/type';
+
+export type {
 	LifecycleHookMap,
 	ObserveEvent,
 	ObserveEventName,
@@ -19,6 +26,7 @@ export type {
 } from './core/hooks/type';
 export type {
 	ActionEvent,
+	ArtifactOptions,
 	ComponentOptions,
 	InjectionConfig
 } from './core/Injector/types';

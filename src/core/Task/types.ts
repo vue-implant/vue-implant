@@ -1,4 +1,4 @@
-import type { Component, Ref, WatchHandle, WatchSource } from 'vue';
+import type { Ref, WatchHandle, WatchSource } from 'vue';
 import type { MountAdapter } from '../adapter/types';
 import type { LifecycleHookMap } from '../hooks/type';
 
@@ -14,6 +14,7 @@ export type TaskErrorMessage = {
 
 export type TaskStatus = 'idle' | 'pending' | 'active';
 export type TaskKind = 'component' | 'listener';
+export type TaskActivitySignal = () => Ref<boolean>;
 
 export interface BaseTask {
 	taskId: string;
@@ -24,12 +25,12 @@ export interface BaseTask {
 	hooks?: LifecycleHookMap;
 }
 
-export interface ComponentTask extends BaseTask {
+export interface ArtifactTask<TArtifact = unknown> extends BaseTask {
 	kind: 'component';
-	componentName: string;
-	componentInjectAt: string;
-	component: Component;
-	adapter: MountAdapter<Component>;
+	artifactName: string;
+	injectAt: string;
+	artifact: TArtifact;
+	adapter: MountAdapter;
 	alive: boolean;
 	scope: 'local' | 'global';
 
@@ -51,7 +52,7 @@ export interface ListenerTask extends BaseTask {
 	event: string;
 	callback: EventListener;
 	controller?: AbortController;
-	activitySignal?: () => Ref<boolean>;
+	activitySignal?: TaskActivitySignal;
 
 	watcher?: TaskWatcherFeature;
 }
@@ -61,14 +62,14 @@ export type TaskListenerFeature = {
 	event: string;
 	callback: EventListener;
 	controller?: AbortController;
-	activitySignal?: () => Ref<boolean>;
+	activitySignal?: TaskActivitySignal;
 };
 export type TaskWatcherFeature = {
 	watcher: WatchHandle;
 	watchSource: WatchSource<boolean>;
 };
 
-export type Task = ComponentTask | ListenerTask;
+export type Task = ArtifactTask | ListenerTask;
 
 export type ListenerRegisterResult = {
 	taskId: string;

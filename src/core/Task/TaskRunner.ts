@@ -12,7 +12,7 @@ import { createDomObserveEmitFactory } from '../payload/createDomObserveEmitFact
 import { DOMWatcher } from '../watcher/DomWatcher';
 import type { TaskContext } from './TaskContext';
 import type { _InjectResult, Task, TaskListenerFeature } from './types';
-import { getTaskInjectAt, getTaskListener, isComponentTask } from './util';
+import { getTaskInjectAt, getTaskListener, isArtifactTask } from './util';
 
 export class TaskRunner {
 	private readonly taskContext: TaskContext;
@@ -134,21 +134,21 @@ export class TaskRunner {
 		const injectAt: string = getTaskInjectAt(context);
 
 		// Mount component
-		if (isComponentTask(context)) {
+		if (isArtifactTask(context)) {
 			this.emit(
 				'inject:start',
 				buildInjectObservePayload('inject:start', {
 					taskId,
 					kind: 'component',
-					injectAt: context.componentInjectAt,
+					injectAt: context.injectAt,
 					status: context.taskStatus,
-					componentName: context.componentName,
+					componentName: context.artifactName,
 					alive: context.alive,
 					scope: context.scope,
 					withEvent: context.withEvent
 				})
 			);
-			const result: _InjectResult = this.injectComponent(targetElement, taskId);
+			const result: _InjectResult = this.injectArtifact(targetElement, taskId);
 			if (!result.isSuccess) {
 				// inject fails, not need call setTaskStatus because this one will emit the other event
 				this.taskContext.setTaskStatus(taskId, 'idle');
@@ -157,12 +157,12 @@ export class TaskRunner {
 					buildInjectObservePayload('inject:fail', {
 						taskId,
 						kind: 'component',
-						injectAt: context.componentInjectAt,
+						injectAt: context.injectAt,
 						status: 'idle',
 						error:
 							result.error ??
 							new Error(`Component inject failed for task "${taskId}"`),
-						componentName: context.componentName
+						componentName: context.artifactName
 					})
 				);
 				return;
@@ -172,9 +172,9 @@ export class TaskRunner {
 				buildInjectObservePayload('inject:success', {
 					taskId,
 					kind: 'component',
-					injectAt: context.componentInjectAt,
+					injectAt: context.injectAt,
 					status: context.taskStatus,
-					componentName: context.componentName,
+					componentName: context.artifactName,
 					alive: context.alive,
 					scope: context.scope
 				})
@@ -383,9 +383,9 @@ export class TaskRunner {
 
 		return proxyController;
 	}
-	private injectComponent(matchedElement: HTMLElement, taskId: string): _InjectResult {
+	private injectArtifact(matchedElement: HTMLElement, taskId: string): _InjectResult {
 		const context: Task | undefined = this.taskContext.get(taskId);
-		if (!context || !isComponentTask(context)) {
+		if (!context || !isArtifactTask(context)) {
 			const error = new Error(`Task "${taskId}" context missing, injection aborted`);
 			this.logger.error(error.message);
 			return {
@@ -395,7 +395,7 @@ export class TaskRunner {
 		}
 
 		if (!context.taskId) {
-			const error = new Error(`No component found for task "${taskId}", injection aborted`);
+			const error = new Error(`No artifact found for task "${taskId}", injection aborted`);
 			this.logger.error(error.message);
 			return {
 				isSuccess: false,
@@ -412,11 +412,11 @@ export class TaskRunner {
 			};
 		}
 
-		const injectAt: string = context.componentInjectAt;
+		const injectAt: string = context.injectAt;
 		const currentDocument = matchedElement.ownerDocument || document;
 
 		const appRoot = currentDocument.createElement('div');
-		appRoot.id = `vue-injector-${UUID()}`;
+		appRoot.id = `implant-root-${UUID()}`;
 		appRoot.style.display = 'contents';
 		appRoot.style.zIndex = '999999';
 
@@ -439,7 +439,7 @@ export class TaskRunner {
 			const mountResult = context.adapter.mount({
 				host: matchedElement,
 				mountPoint: appRoot,
-				artifact: context.component,
+				artifact: context.artifact,
 				taskId,
 				injectAt
 			});
@@ -450,7 +450,7 @@ export class TaskRunner {
 			context.instance = mountResult.instance;
 			context.appRoot = appRoot;
 
-			this.logger.info(`Component "${context.componentName}" injected at "${injectAt}"`);
+			this.logger.info(`Artifact "${context.artifactName}" injected at "${injectAt}"`);
 
 			if (context.alive && !context.isObserver) {
 				// Injection re-injection mechanism
@@ -493,7 +493,7 @@ export class TaskRunner {
 				isSuccess: true
 			};
 		} catch (error) {
-			this.logger.error(`Component mount failed for task "${taskId}":`, error);
+			this.logger.error(`Artifact mount failed for task "${taskId}":`, error);
 			appRoot.remove();
 			return {
 				isSuccess: false,

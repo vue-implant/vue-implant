@@ -1,7 +1,7 @@
 import type { Component, Ref } from 'vue';
-import { createVueAdapter } from '../../src/core/adapter/VueAdapter';
+import { createVueAdapter } from '../../src/core/adapter/vue/VueAdapter';
 import type {
-	ComponentTask,
+	ArtifactTask,
 	ListenerTask,
 	Task,
 	TaskListenerFeature,
@@ -14,16 +14,19 @@ type TaskBaseInput = {
 	taskStatus?: TaskStatus;
 	timeout?: number;
 	withEvent?: boolean;
-	hooks?: ComponentTask['hooks'];
+	hooks?: ArtifactTask['hooks'];
 	watcher?: TaskWatcherFeature;
 };
 
-export type CreateComponentTaskInput = TaskBaseInput & {
+export type CreateArtifactTaskInput = TaskBaseInput & {
 	kind: 'component';
+	artifactName?: string;
+	injectAt?: string;
+	artifact?: Component;
 	componentName?: string;
 	componentInjectAt?: string;
 	component?: Component;
-	adapter?: ComponentTask['adapter'];
+	adapter?: ArtifactTask['adapter'];
 	alive?: boolean;
 	scope?: 'local' | 'global';
 	listener?: TaskListenerFeature;
@@ -44,10 +47,14 @@ export type CreateListenerTaskInput = TaskBaseInput & {
 	activitySignal?: () => Ref<boolean>;
 };
 
-export function createTask(input: CreateComponentTaskInput): ComponentTask;
+export function createTask(input: CreateArtifactTaskInput): ArtifactTask;
 export function createTask(input: CreateListenerTaskInput): ListenerTask;
-export function createTask(input: CreateComponentTaskInput | CreateListenerTaskInput): Task {
+export function createTask(input: CreateArtifactTaskInput | CreateListenerTaskInput): Task {
 	if (input.kind === 'component') {
+		const artifactName = input.artifactName ?? input.componentName ?? 'TestComponent';
+		const injectAt = input.injectAt ?? input.componentInjectAt ?? '#app';
+		const artifact = input.artifact ?? input.component ?? createVueComponent(artifactName);
+
 		return {
 			taskId: input.taskId,
 			kind: 'component',
@@ -56,9 +63,9 @@ export function createTask(input: CreateComponentTaskInput | CreateListenerTaskI
 			withEvent: input.withEvent ?? false,
 			...(input.hooks ? { hooks: input.hooks } : {}),
 			...(input.watcher ? { watcher: input.watcher } : {}),
-			componentName: input.componentName ?? 'TestComponent',
-			componentInjectAt: input.componentInjectAt ?? '#app',
-			component: input.component ?? { name: 'TestComponent', render: () => null },
+			artifactName,
+			injectAt,
+			artifact,
 			adapter: input.adapter ?? createVueAdapter(),
 			alive: input.alive ?? false,
 			scope: input.scope ?? 'local',
@@ -88,7 +95,7 @@ export function createTask(input: CreateComponentTaskInput | CreateListenerTaskI
 	};
 }
 
-export function createComponentTask(input: Omit<CreateComponentTaskInput, 'kind'>): ComponentTask {
+export function createArtifactTask(input: Omit<CreateArtifactTaskInput, 'kind'>): ArtifactTask {
 	return createTask({
 		...input,
 		kind: 'component'
@@ -100,4 +107,16 @@ export function createListenerTask(input: Omit<CreateListenerTaskInput, 'kind'>)
 		...input,
 		kind: 'listener'
 	});
+}
+
+export function createVueComponent(name: string): Component {
+	return {
+		name,
+		render() {
+			return null;
+		},
+		__vccOpts: {
+			name
+		}
+	};
 }

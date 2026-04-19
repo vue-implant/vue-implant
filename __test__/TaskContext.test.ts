@@ -3,8 +3,8 @@ import type { Ref, WatchHandle } from 'vue';
 import { ObserverHub } from '../src/core/hooks/ObserverHub';
 import type { ObserveEvent } from '../src/core/hooks/type';
 import { TaskContext } from '../src/core/Task/TaskContext';
-import type { ComponentTask, Task } from '../src/core/Task/types';
-import { createComponentTask, createListenerTask } from './factory/TaskFactor';
+import type { ArtifactTask, Task } from '../src/core/Task/types';
+import { createArtifactTask, createListenerTask, createVueComponent } from './factory/TaskFactor';
 
 describe('TaskContext', () => {
 	let taskContext: TaskContext;
@@ -17,7 +17,7 @@ describe('TaskContext', () => {
 
 	describe('base curd', () => {
 		it('should set and get context correctly', () => {
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test'
 			});
 			taskContext.set('test', context);
@@ -27,7 +27,7 @@ describe('TaskContext', () => {
 			expect(taskContext.get('nonexistent')).toBeUndefined();
 		});
 		it('should return true for existing key and false for non-existent key in has()', () => {
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test'
 			});
 			taskContext.set('test', context);
@@ -35,7 +35,7 @@ describe('TaskContext', () => {
 			expect(taskContext.has('nonexistent')).toBe(false);
 		});
 		it('should delete key correctly', () => {
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test'
 			});
 			taskContext.set('test', context);
@@ -43,8 +43,8 @@ describe('TaskContext', () => {
 			expect(taskContext.get('test')).toBeUndefined();
 		});
 		it('should return keys correctly', () => {
-			const context1: Task = createComponentTask({ taskId: 'test1' });
-			const context2: Task = createComponentTask({ taskId: 'test2' });
+			const context1: Task = createArtifactTask({ taskId: 'test1' });
+			const context2: Task = createArtifactTask({ taskId: 'test2' });
 			taskContext.set('test1', context1);
 			taskContext.set('test2', context2);
 			const keys = Array.from(taskContext.keys());
@@ -53,56 +53,13 @@ describe('TaskContext', () => {
 		});
 
 		it('should clear all contexts', () => {
-			const context1: Task = createComponentTask({ taskId: 'test1' });
-			const context2: Task = createComponentTask({ taskId: 'test2' });
+			const context1: Task = createArtifactTask({ taskId: 'test1' });
+			const context2: Task = createArtifactTask({ taskId: 'test2' });
 			taskContext.set('test1', context1);
 			taskContext.set('test2', context2);
 			taskContext.destroyAll();
 			expect(taskContext.get('test1')).toBeUndefined();
 			expect(taskContext.get('test2')).toBeUndefined();
-		});
-	});
-
-	describe('shared plugins', () => {
-		it('should register shared plugins in order and ignore duplicates', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-			const pluginA = { install: vi.fn() };
-			const pluginB = { install: vi.fn() };
-
-			taskContext.use(pluginA);
-			taskContext.usePlugins(pluginA, pluginB);
-
-			expect(taskContext.getPlugins()).toEqual([pluginA, pluginB]);
-			expect(warnSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Plugin already registered, skipping duplicate')
-			);
-		});
-
-		it('should keep getPlugins isolated from external mutation', () => {
-			const plugin = { install: vi.fn() };
-			taskContext.use(plugin);
-			const plugins = taskContext.getPlugins();
-
-			plugins.length = 0;
-
-			expect(taskContext.getPlugins()).toEqual([plugin]);
-		});
-
-		it('should keep setPinia/getPinia compatible and replace previous pinia plugin', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-			const otherPlugin = { install: vi.fn() };
-			const piniaA = { install: vi.fn() };
-			const piniaB = { install: vi.fn() };
-
-			taskContext.use(otherPlugin);
-			taskContext.setPinia(piniaA);
-			taskContext.setPinia(piniaB);
-
-			expect(taskContext.getPinia()).toBe(piniaB);
-			expect(taskContext.getPlugins()).toEqual([otherPlugin, piniaB]);
-			expect(warnSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Pinia instance already set, overwriting')
-			);
 		});
 	});
 
@@ -112,14 +69,14 @@ describe('TaskContext', () => {
 
 			taskContext.set(
 				'inactive',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'inactive',
 					taskStatus: 'idle'
 				})
 			);
 			taskContext.set(
 				'active',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'active',
 					taskStatus: 'active'
 				})
@@ -131,7 +88,7 @@ describe('TaskContext', () => {
 		it('should set task status correctly', () => {
 			taskContext.set(
 				'test',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'test',
 					taskStatus: 'idle'
 				})
@@ -211,13 +168,13 @@ describe('TaskContext', () => {
 			expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('nonexistent'));
 		});
 		it('should delete context of existing id correctly', () => {
-			const context: Task = createComponentTask({ taskId: 'test' });
+			const context: Task = createArtifactTask({ taskId: 'test' });
 			taskContext.set('test', context);
 			taskContext.destroy('test');
 			expect(taskContext.get('test')).toBeUndefined();
 		});
 		it('should delete taskRecords and taskErrorMessages of existing id correctly', () => {
-			const context: Task = createComponentTask({ taskId: 'test' });
+			const context: Task = createArtifactTask({ taskId: 'test' });
 			taskContext.set('test', context);
 			taskContext.taskRecords.push({ taskId: 'test', injectAt: 'inject_test' });
 			taskContext.taskErrorMessages.push({ taskId: 'test', injectAt: 'inject_test' });
@@ -230,7 +187,7 @@ describe('TaskContext', () => {
 
 			const mockWatcher = spy as unknown as WatchHandle;
 
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				watcher: {
 					watcher: mockWatcher,
@@ -245,7 +202,8 @@ describe('TaskContext', () => {
 		});
 		it('should destroy context of listener correctly', () => {
 			const mockFn = vi.fn(() => {});
-			const context: Task = createComponentTask({
+			const component = createVueComponent('Comp');
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				withEvent: true,
 				timeout: 5000,
@@ -253,7 +211,7 @@ describe('TaskContext', () => {
 				scope: 'local',
 				componentName: 'Comp',
 				componentInjectAt: '#app',
-				component: { name: 'Comp', render: () => null },
+				component,
 				listener: {
 					listenAt: 'testListenAt',
 					event: 'click',
@@ -276,7 +234,7 @@ describe('TaskContext', () => {
 			const mockUnmount = vi.fn();
 			const mockRemove = vi.fn();
 
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				componentName: 'TestComponent',
 				componentInjectAt: '#app',
@@ -335,8 +293,8 @@ describe('TaskContext', () => {
 	});
 	describe('destroyAll', () => {
 		it('should destroy all contexts correctly', () => {
-			const context1: Task = createComponentTask({ taskId: 'test1' });
-			const context2: Task = createComponentTask({ taskId: 'test2' });
+			const context1: Task = createArtifactTask({ taskId: 'test1' });
+			const context2: Task = createArtifactTask({ taskId: 'test2' });
 			taskContext.set('test1', context1);
 			taskContext.set('test2', context2);
 			taskContext.destroyAll();
@@ -355,14 +313,14 @@ describe('TaskContext', () => {
 		it('should clear all tasks after destroyAll', () => {
 			taskContext.set(
 				'destroy-all-a',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'destroy-all-a',
 					taskStatus: 'active'
 				})
 			);
 			taskContext.set(
 				'destroy-all-b',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'destroy-all-b',
 					taskStatus: 'idle'
 				})
@@ -417,25 +375,13 @@ describe('TaskContext', () => {
 		it('should not throw an error when contextMap is empty', () => {
 			expect(() => taskContext.destroyAll()).not.toThrow();
 		});
-
-		it('should clear shared plugins and legacy pinia on destroyAll', () => {
-			const plugin = { install: vi.fn() };
-			const pinia = { install: vi.fn() };
-
-			taskContext.use(plugin);
-			taskContext.setPinia(pinia);
-			taskContext.destroyAll();
-
-			expect(taskContext.getPlugins()).toEqual([]);
-			expect(taskContext.getPinia()).toBeUndefined();
-		});
 	});
 
 	describe('releaseComponentInstance', () => {
 		it('should unmount app and remove DOM element', () => {
 			const mockUnmount = vi.fn();
 
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				componentName: 'TestComponent',
 				componentInjectAt: '#app',
@@ -455,7 +401,7 @@ describe('TaskContext', () => {
 			const mockUnmount = vi.fn().mockImplementation(() => {
 				throw new Error('Unmount failed');
 			});
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				componentName: 'TestComponent',
 				componentInjectAt: '#app',
@@ -476,7 +422,7 @@ describe('TaskContext', () => {
 			);
 		});
 		it('should warn if component is already unmounted', () => {
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				componentName: 'TestComponent',
 				componentInjectAt: '#app'
@@ -495,7 +441,7 @@ describe('TaskContext', () => {
 	describe('releaseDomElement', () => {
 		it('should remove root element', () => {
 			const mockRemove = vi.fn();
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				appRoot: { remove: mockRemove } as unknown as HTMLElement
 			});
@@ -513,7 +459,7 @@ describe('TaskContext', () => {
 		});
 
 		it('should warn if root element not found', () => {
-			const context: Task = createComponentTask({ taskId: 'test' });
+			const context: Task = createArtifactTask({ taskId: 'test' });
 			taskContext.set('test', context);
 			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			taskContext.releaseDomElement('test');
@@ -526,7 +472,7 @@ describe('TaskContext', () => {
 			const mockRemove = vi.fn().mockImplementation(() => {
 				throw new Error('Remove failed');
 			});
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				appRoot: { remove: mockRemove } as unknown as HTMLElement
 			});
@@ -610,8 +556,10 @@ describe('TaskContext', () => {
 	describe('releaseWatcher', () => {
 		it('should stop watcher', () => {
 			const mockWatcher = vi.fn() as unknown as WatchHandle;
-			const context: Task = createComponentTask({
+			const component = createVueComponent('TestComponent');
+			const context: Task = createArtifactTask({
 				taskId: 'test',
+				component,
 				watcher: {
 					watcher: mockWatcher,
 					watchSource: () => true
@@ -624,7 +572,7 @@ describe('TaskContext', () => {
 		});
 
 		it('should do nothing if watcher is undefined', () => {
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test'
 			});
 			taskContext.set('test', context);
@@ -637,7 +585,7 @@ describe('TaskContext', () => {
 			const mockWatcher = vi.fn().mockImplementation(() => {
 				throw new Error('Stop failed');
 			}) as unknown as WatchHandle;
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				watcher: {
 					watcher: mockWatcher,
@@ -661,8 +609,9 @@ describe('TaskContext', () => {
 			const mockUnmount = vi.fn();
 			const mockRemove = vi.fn();
 			const mockStopAlive = vi.fn();
+			const component = createVueComponent('TestComponent');
 
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				taskStatus: 'idle',
 				timeout: 5000,
@@ -679,7 +628,7 @@ describe('TaskContext', () => {
 				withEvent: true,
 				componentName: 'TestComponent',
 				componentInjectAt: '#app',
-				component: { name: 'TestComponent', render: () => null },
+				component,
 				alive: false,
 				scope: 'local',
 				mountHandle: { unmount: mockUnmount },
@@ -715,7 +664,7 @@ describe('TaskContext', () => {
 			expect(() => taskContext.reset('nonexistent')).not.toThrow();
 		});
 		it('should stay in map after reset', () => {
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				taskStatus: 'idle'
 			});
@@ -746,13 +695,13 @@ describe('TaskContext', () => {
 
 			taskContext.set(
 				'a',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'a',
 					taskStatus: 'idle',
 					timeout: 5000,
 					componentName: 'AComp',
 					componentInjectAt: '#a',
-					component: { name: 'AComp', render: () => null },
+					component: createVueComponent('AComp'),
 					alive: false,
 					scope: 'local',
 					withEvent: true,
@@ -774,13 +723,13 @@ describe('TaskContext', () => {
 
 			taskContext.set(
 				'b',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'b',
 					taskStatus: 'idle',
 					timeout: 5000,
 					componentName: 'BComp',
 					componentInjectAt: '#b',
-					component: { name: 'BComp', render: () => null },
+					component: createVueComponent('BComp'),
 					alive: false,
 					scope: 'local',
 					withEvent: true,
@@ -813,10 +762,10 @@ describe('TaskContext', () => {
 
 			expect(taskContext.has('a')).toBe(true);
 			expect(taskContext.has('b')).toBe(true);
-			expect(taskContext.get<ComponentTask>('a')?.mountHandle).toBeUndefined();
-			expect(taskContext.get<ComponentTask>('b')?.mountHandle).toBeUndefined();
-			expect(taskContext.get<ComponentTask>('a')?.isObserver).toBe(false);
-			expect(taskContext.get<ComponentTask>('b')?.isObserver).toBe(false);
+			expect(taskContext.get<ArtifactTask>('a')?.mountHandle).toBeUndefined();
+			expect(taskContext.get<ArtifactTask>('b')?.mountHandle).toBeUndefined();
+			expect(taskContext.get<ArtifactTask>('a')?.isObserver).toBe(false);
+			expect(taskContext.get<ArtifactTask>('b')?.isObserver).toBe(false);
 		});
 
 		it('should not throw when context map is empty', () => {
@@ -844,13 +793,13 @@ describe('TaskContext', () => {
 			const unmount = vi.fn();
 			observed.set(
 				'obs-task',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'obs-task',
 					taskStatus: 'idle',
 					timeout: 5000,
 					componentName: 'ObsComp',
 					componentInjectAt: '#obs',
-					component: { name: 'ObsComp', render: () => null },
+					component: createVueComponent('ObsComp'),
 					alive: false,
 					scope: 'local',
 					watcher: {
@@ -900,13 +849,13 @@ describe('TaskContext', () => {
 			const unmount = vi.fn();
 			observed.set(
 				'obs-resource',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'obs-resource',
 					taskStatus: 'idle',
 					timeout: 5000,
 					componentName: 'ObsResourceComp',
 					componentInjectAt: '#obs-resource',
-					component: { name: 'ObsResourceComp', render: () => null },
+					component: createVueComponent('ObsResourceComp'),
 					alive: false,
 					scope: 'local',
 					watcher: {
