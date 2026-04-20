@@ -7,7 +7,29 @@ export type ActivitySignalStore<T = boolean> = {
 	subscribe(listener: ActivitySignalListener<T>): SignalUnsubscribe;
 };
 
-export type ActivitySignalSource<T = boolean> = ActivitySignalStore<T>;
+/**
+ * @deprecated Will be removed in 2.0. Use `ActivitySignalStore` instead.
+ *
+ * @example
+ * ```ts
+ * // 1.x (deprecated)
+ * const signal = ref(true)
+ * activitySignal: () => signal
+ *
+ * // 2.0
+ * const signal = createActivityStore(true)
+ * activitySignal: () => signal
+ * ```
+ */
+export type ActivitySignalRefLike<T = boolean> = {
+	value: T;
+};
+
+/**
+ * @deprecated Accepting `ActivitySignalRefLike` (e.g. Vue `ref`) will be removed in 2.0.
+ * Use `ActivitySignalStore` instead.
+ */
+export type ActivitySignalSource<T = boolean> = ActivitySignalStore<T> | ActivitySignalRefLike<T>;
 
 export type ActivitySignalSubscribable<T = boolean> = ActivitySignalStore<T>;
 

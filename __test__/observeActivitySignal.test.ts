@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { nextTick, ref } from 'vue';
 import {
 	createActivityStore,
 	observeActivitySignal,
@@ -37,5 +38,23 @@ describe('observeActivitySignal', () => {
 		expect(listener).toHaveBeenCalledWith(true);
 		expect(source.subscribe).toHaveBeenCalledWith(listener);
 		expect(typeof unsubscribe).toBe('function');
+	});
+
+	it('should wrap ref-like sources into the built-in signal protocol', async () => {
+		const source = ref(false);
+		const listener = vi.fn();
+
+		const unsubscribe = observeActivitySignal(source, listener);
+
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(listener).toHaveBeenNthCalledWith(1, false);
+
+		source.value = true;
+		await nextTick();
+
+		expect(listener).toHaveBeenCalledTimes(2);
+		expect(listener).toHaveBeenNthCalledWith(2, true);
+
+		stopActivitySignal(unsubscribe);
 	});
 });
