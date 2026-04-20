@@ -4,6 +4,7 @@ import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
 import { buildResourceObservePayload } from '../payload/buildResourceObservePayload';
 import { buildTaskObservePayload } from '../payload/buildTaskObservePayload';
+import { stopActivitySignal } from '../signal/observeActivitySignal';
 import type {
 	ArtifactTask,
 	ListenerTask,
@@ -322,7 +323,7 @@ export class TaskContext {
 		const context = this.contextMap.get(id);
 		if (context?.watcher) {
 			try {
-				context.watcher.watcher();
+				stopActivitySignal(context.watcher.watcher);
 				context.watcher = undefined;
 				this.emit(
 					'resource:watcherReleased',
@@ -376,7 +377,7 @@ export class TaskContext {
 		}
 
 		if (context.watcher) {
-			context.watcher.watcher();
+			stopActivitySignal(context.watcher.watcher);
 			context.watcher = undefined;
 		}
 

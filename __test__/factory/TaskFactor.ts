@@ -1,5 +1,7 @@
-import type { Component, Ref } from 'vue';
+import type { Component } from 'vue';
 import { createVueAdapter } from '../../src/core/adapter/vue/VueAdapter';
+import { Logger } from '../../src/core/logger/Logger';
+import type { ActivitySignalSource } from '../../src/core/signal/types';
 import type {
 	ArtifactTask,
 	ListenerTask,
@@ -44,7 +46,7 @@ export type CreateListenerTaskInput = TaskBaseInput & {
 	event?: string;
 	callback?: EventListener;
 	controller?: AbortController;
-	activitySignal?: () => Ref<boolean>;
+	activitySignal?: () => ActivitySignalSource<boolean>;
 };
 
 export function createTask(input: CreateArtifactTaskInput): ArtifactTask;
@@ -54,7 +56,7 @@ export function createTask(input: CreateArtifactTaskInput | CreateListenerTaskIn
 		const artifactName = input.artifactName ?? input.componentName ?? 'TestComponent';
 		const injectAt = input.injectAt ?? input.componentInjectAt ?? '#app';
 		const artifact = input.artifact ?? input.component ?? createVueComponent(artifactName);
-
+		const logger = new Logger();
 		return {
 			taskId: input.taskId,
 			kind: 'component',
@@ -66,7 +68,7 @@ export function createTask(input: CreateArtifactTaskInput | CreateListenerTaskIn
 			artifactName,
 			injectAt,
 			artifact,
-			adapter: input.adapter ?? createVueAdapter(),
+			adapter: input.adapter ?? createVueAdapter(logger),
 			alive: input.alive ?? false,
 			scope: input.scope ?? 'local',
 			...(input.listener ? { listener: input.listener } : {}),

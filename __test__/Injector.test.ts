@@ -1,10 +1,10 @@
 import { createPinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ref } from 'vue';
 import { ObserverHub } from '../src/core/hooks/ObserverHub';
 import { Injector } from '../src/core/Injector/Injector';
 import { Action } from '../src/core/Injector/types';
 import { Logger } from '../src/core/logger/Logger';
+import { createActivityStore } from '../src/core/signal/observeActivitySignal';
 import { TaskContext } from '../src/core/Task/TaskContext';
 import type { TaskLifeCycle } from '../src/core/Task/TaskLifeCycle';
 import type { TaskRegister } from '../src/core/Task/TaskRegister';
@@ -102,7 +102,7 @@ describe('Injector', () => {
 	});
 
 	it('should forward bindListenerSignal and controlListener to TaskRunner', () => {
-		const source = ref(true);
+		const source = createActivityStore(true);
 		const bindSpy = vi.spyOn(taskRunner, 'bindListenerSignal').mockReturnValue(true);
 		const controlSpy = vi.spyOn(taskRunner, 'controlListener').mockReturnValue(true);
 

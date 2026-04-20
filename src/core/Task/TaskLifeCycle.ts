@@ -63,7 +63,7 @@ export class TaskLifeCycle {
 			})
 		);
 		// placeholder stop handler for pending async setup
-		context.disableAlive = () => { };
+		context.disableAlive = () => {};
 
 		// Case 1: Component is already mounted and connected - set up the alive observer directly
 		if (context.mountHandle && context.appRoot?.isConnected) {

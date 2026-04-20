@@ -1,9 +1,12 @@
-import { isVueComponent } from './util';
-import type { VueMountAdapter } from './vue/type';
-import { createVueAdapter } from './vue/VueAdapter';
+import type { MountAdapter, ResolvableMountAdapter } from './types';
 
-export function adapter(artifact: unknown): VueMountAdapter | undefined {
-	if (isVueComponent(artifact)) {
-		return createVueAdapter();
-	}
+const adapters: ResolvableMountAdapter[] = [];
+export function resolveAdapter(artifact: unknown): MountAdapter | undefined {
+	const resolvedAdapter = adapters.find((adapter) => adapter.matches(artifact));
+	return resolvedAdapter;
+}
+
+export function registerAdapter(adapter: ResolvableMountAdapter): void {
+	if (adapters.includes(adapter)) return;
+	adapters.push(adapter);
 }

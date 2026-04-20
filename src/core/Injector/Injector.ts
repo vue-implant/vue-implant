@@ -1,10 +1,13 @@
-import type { Plugin, WatchSource } from 'vue';
+import type { Plugin } from 'vue';
+import { registerAdapter } from '../adapter/Adapter';
+import { createVueAdapter } from '../adapter/vue/VueAdapter';
 import { VuePlugin } from '../adapter/vue/VuePlugin';
 import { ObserverHub } from '../hooks/ObserverHub';
 import type { ObserveEmitter, ObserveEventName, ObserveHook } from '../hooks/type';
 import { createObserveEmitter, registerHooks } from '../hooks/util';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
+import type { ActivitySignalSource } from '../signal/types';
 import { TaskContext } from '../Task/TaskContext';
 import { TaskLifeCycle } from '../Task/TaskLifeCycle';
 import { TaskRegister } from '../Task/TaskRegister';
@@ -25,7 +28,6 @@ export class Injector {
 	private readonly taskLifeCycle: TaskLifeCycle;
 	private readonly logger: ILogger;
 	private readonly observer: ObserverHub;
-	private readonly vuePlugin: typeof VuePlugin;
 	//default configuration
 	private readonly injectConfig: InjectionConfig = {
 		alive: false,
@@ -37,9 +39,7 @@ export class Injector {
 	constructor(config: Partial<InjectionConfig> = {}) {
 		this.logger = config.logger ?? this.injectConfig.logger;
 		this.observer = config.observer ?? new ObserverHub(this.logger);
-		this.vuePlugin = VuePlugin;
-		this.vuePlugin.setLogger(this.logger);
-
+		registerAdapter(createVueAdapter(this.logger));
 		const emitObserve: ObserveEmitter = createObserveEmitter(this.observer);
 
 		this.injectConfig = {
@@ -157,25 +157,25 @@ export class Injector {
 	}
 
 	public use<T extends Plugin>(plugin: T): this {
-		this.vuePlugin.use(plugin);
+		VuePlugin.use(plugin);
 		return this;
 	}
 
 	public usePlugins(...plugins: Plugin[]): this {
-		this.vuePlugin.usePlugins(...plugins);
+		VuePlugin.usePlugins(...plugins);
 		return this;
 	}
 
 	public getPlugins(): Plugin[] {
-		return this.vuePlugin.getPlugins();
+		return VuePlugin.getPlugins();
 	}
 
 	public setPinia<T extends Plugin>(pinia: T): void {
-		this.vuePlugin.setPinia(pinia);
+		VuePlugin.setPinia(pinia);
 	}
 
 	public getPinia(): Plugin | undefined {
-		return this.vuePlugin.getPinia();
+		return VuePlugin.getPinia();
 	}
 
 	public reset(taskId: string): void {
@@ -194,7 +194,7 @@ export class Injector {
 		this.taskLifeCycle.destroyAll();
 	}
 	// TODO: add config option to enable flush sync or pre
-	public bindListenerSignal(taskId: string, source: WatchSource<boolean>): boolean {
+	public bindListenerSignal(taskId: string, source: ActivitySignalSource<boolean>): boolean {
 		return this.taskRunner.bindListenerSignal(taskId, source);
 	}
 

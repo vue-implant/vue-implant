@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ref } from 'vue';
+import { registerAdapter } from '../src/core/adapter/Adapter';
+import { createVueAdapter } from '../src/core/adapter/vue/VueAdapter';
 import { ObserverHub } from '../src/core/hooks/ObserverHub';
 import type { ObserveEvent } from '../src/core/hooks/type';
 import { createObserveEmitter } from '../src/core/hooks/util';
 import { Logger } from '../src/core/logger/Logger';
+import { createActivityStore } from '../src/core/signal/observeActivitySignal';
 import { TaskContext } from '../src/core/Task/TaskContext';
 import { TaskRegister } from '../src/core/Task/TaskRegister';
 import type { ArtifactTask } from '../src/core/Task/types';
@@ -12,10 +14,14 @@ import { createTask, createVueComponent } from './factory/TaskFactor';
 describe('TaskRegister', () => {
 	let taskContext: TaskContext;
 	let taskRegister: TaskRegister;
+	let vueAdapter: ReturnType<typeof createVueAdapter>;
 
 	beforeEach(() => {
 		const observer = new ObserverHub();
 		taskContext = new TaskContext();
+		const logger = new Logger();
+		vueAdapter = createVueAdapter(logger);
+		registerAdapter(vueAdapter);
 		taskRegister = new TaskRegister(
 			taskContext,
 			{
@@ -78,7 +84,7 @@ describe('TaskRegister', () => {
 
 	it('should store event config and activity signal when provided', () => {
 		const component = createVueComponent('CompC');
-		const signal = ref(true);
+		const signal = createActivityStore(true);
 		const activitySignal = () => signal;
 		const callback = vi.fn();
 

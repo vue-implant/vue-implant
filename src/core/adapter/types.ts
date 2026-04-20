@@ -27,3 +27,10 @@ export interface MountAdapter<TArtifact = unknown, THandle = unknown, TInstance 
 	mount(input: AdapterMountInput<TArtifact>): AdapterMountResult<THandle, TInstance>;
 	unmount(input: AdapterUnmountInput<THandle>): void;
 }
+
+export interface ResolvableMountAdapter<TArtifact = unknown, THandle = unknown, TInstance = unknown>
+	extends MountAdapter<TArtifact, THandle, TInstance> {
+	matches(artifact: unknown): artifact is TArtifact;
+}
+
+export type AdapterResolver = (artifact: unknown) => MountAdapter | undefined;

@@ -1,6 +1,6 @@
-import type { Ref, WatchHandle, WatchSource } from 'vue';
 import type { MountAdapter } from '../adapter/types';
 import type { LifecycleHookMap } from '../hooks/type';
+import type { ActivitySignalSource, SignalUnsubscribe } from '../signal/types';
 
 export type TaskRecord = {
 	taskId: string;
@@ -14,7 +14,7 @@ export type TaskErrorMessage = {
 
 export type TaskStatus = 'idle' | 'pending' | 'active';
 export type TaskKind = 'component' | 'listener';
-export type TaskActivitySignal = () => Ref<boolean>;
+export type TaskActivitySignal = () => ActivitySignalSource<boolean>;
 
 export interface BaseTask {
 	taskId: string;
@@ -65,8 +65,8 @@ export type TaskListenerFeature = {
 	activitySignal?: TaskActivitySignal;
 };
 export type TaskWatcherFeature = {
-	watcher: WatchHandle;
-	watchSource: WatchSource<boolean>;
+	watcher: SignalUnsubscribe;
+	watchSource: ActivitySignalSource<boolean>;
 };
 
 export type Task = ArtifactTask | ListenerTask;

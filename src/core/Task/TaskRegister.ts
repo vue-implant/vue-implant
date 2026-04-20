@@ -1,5 +1,5 @@
 import { getArtifactName } from '../../util/getArtifactName';
-import { adapter } from '../adapter/Adapter';
+import { resolveAdapter } from '../adapter/Adapter';
 import type { ObserveEmitter } from '../hooks/type';
 import { registerHooks } from '../hooks/util';
 import type { ArtifactOptions, InjectionConfig } from '../Injector/types';
@@ -143,7 +143,7 @@ export class TaskRegister {
 		const alive = option?.alive ?? this.injectConfig.alive;
 		const scope = option?.scope ?? this.injectConfig.scope;
 		const timeout = option?.timeout ?? this.injectConfig.timeout;
-		const mountAdapter = adapter(artifact);
+		const mountAdapter = resolveAdapter(artifact);
 		if (!mountAdapter) {
 			throw new Error(`No adapter found for artifact: ${artifactName}`);
 		}

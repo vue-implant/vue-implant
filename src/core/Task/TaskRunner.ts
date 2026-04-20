@@ -1,5 +1,3 @@
-import type { WatchHandle, WatchSource } from 'vue';
-import { watch } from 'vue';
 import { UUID } from '../../util/uuid';
 import type { ObserveEmitter } from '../hooks/type';
 import { Action, type ActionEvent, type InjectionConfig } from '../Injector/types';
@@ -9,6 +7,8 @@ import { buildInjectObservePayload } from '../payload/buildInjectObservePayload'
 import { buildListenerObservePayload } from '../payload/buildListenerObservePayload';
 import { buildRunObservePayload } from '../payload/buildRunObservePayload';
 import { createDomObserveEmitFactory } from '../payload/createDomObserveEmitFactory';
+import { observeActivitySignal, stopActivitySignal } from '../signal/observeActivitySignal';
+import type { ActivitySignalSource } from '../signal/types';
 import { DOMWatcher } from '../watcher/DomWatcher';
 import type { TaskContext } from './TaskContext';
 import type { _InjectResult, Task, TaskListenerFeature } from './types';
@@ -214,7 +214,7 @@ export class TaskRunner {
 		this.taskContext.setTaskStatus(taskId, 'active');
 	}
 
-	public bindListenerSignal(taskId: string, source: WatchSource<boolean>): boolean {
+	public bindListenerSignal(taskId: string, source: ActivitySignalSource<boolean>): boolean {
 		// Bind a reactive signal to control automatic listener attach/detach for this task
 		const context: Task | undefined = this.taskContext.get(taskId);
 		if (!context) {
@@ -225,17 +225,16 @@ export class TaskRunner {
 		// Stop the previous watcher before creating a new one
 		// to avoid both firing simultaneously during the immediate callback
 		if (context.watcher) {
-			context.watcher.watcher();
+			stopActivitySignal(context.watcher.watcher);
 			context.watcher = undefined;
 		}
 
 		try {
-			const unWatch: WatchHandle = watch(
+			const unWatch = observeActivitySignal(
 				source,
 				(newSignal) => {
 					this.controlListener(taskId, newSignal ? Action.OPEN : Action.CLOSE);
-				},
-				{ immediate: true }
+				}
 			);
 
 			context.watcher = {
