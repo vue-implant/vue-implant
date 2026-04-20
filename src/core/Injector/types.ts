@@ -1,7 +1,7 @@
-import type { Ref } from 'vue';
 import type { ObserverHub } from '../hooks/ObserverHub';
 import type { LifecycleHookMap } from '../hooks/type';
 import type { ILogger } from '../logger/types';
+import type { TaskActivitySignal } from '../Task/types';
 
 export enum Action {
 	OPEN = 'OPEN',
@@ -10,7 +10,7 @@ export enum Action {
 
 export type ActionEvent = 'OPEN' | 'CLOSE';
 
-export type ComponentOptions = {
+export type ArtifactOptions = {
 	alive?: boolean;
 	scope?: 'local' | 'global';
 	timeout?: number;
@@ -18,10 +18,12 @@ export type ComponentOptions = {
 		listenAt: string;
 		type: string;
 		callback: EventListener;
-		activitySignal?: () => Ref<boolean>;
+		activitySignal?: TaskActivitySignal;
 	};
 	hooks?: LifecycleHookMap;
 };
+
+export type ComponentOptions = ArtifactOptions;
 
 export type InjectionConfig = {
 	alive: boolean;

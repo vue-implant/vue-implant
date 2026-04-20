@@ -1,5 +1,6 @@
-import type { App, Component, ComponentPublicInstance, Ref, WatchHandle, WatchSource } from 'vue';
+import type { MountAdapter } from '../adapter/types';
 import type { LifecycleHookMap } from '../hooks/type';
+import type { ActivitySignalSource, SignalUnsubscribe } from '../signal/types';
 
 export type TaskRecord = {
 	taskId: string;
@@ -13,6 +14,7 @@ export type TaskErrorMessage = {
 
 export type TaskStatus = 'idle' | 'pending' | 'active';
 export type TaskKind = 'component' | 'listener';
+export type TaskActivitySignal = () => ActivitySignalSource<boolean>;
 
 export interface BaseTask {
 	taskId: string;
@@ -23,17 +25,19 @@ export interface BaseTask {
 	hooks?: LifecycleHookMap;
 }
 
-export interface ComponentTask extends BaseTask {
+export interface ArtifactTask<TArtifact = unknown> extends BaseTask {
 	kind: 'component';
-	componentName: string;
-	componentInjectAt: string;
-	component: Component;
+	artifactName: string;
+	injectAt: string;
+	artifact: TArtifact;
+	adapter: MountAdapter;
 	alive: boolean;
 	scope: 'local' | 'global';
 
-	app?: App<Element>;
+	mountHandle?: unknown;
+	hostElement?: HTMLElement;
 	appRoot?: HTMLElement;
-	instance?: ComponentPublicInstance;
+	instance?: unknown;
 
 	isObserver?: boolean;
 	disableAlive?: () => void;
@@ -48,7 +52,7 @@ export interface ListenerTask extends BaseTask {
 	event: string;
 	callback: EventListener;
 	controller?: AbortController;
-	activitySignal?: () => Ref<boolean>;
+	activitySignal?: TaskActivitySignal;
 
 	watcher?: TaskWatcherFeature;
 }
@@ -58,14 +62,14 @@ export type TaskListenerFeature = {
 	event: string;
 	callback: EventListener;
 	controller?: AbortController;
-	activitySignal?: () => Ref<boolean>;
+	activitySignal?: TaskActivitySignal;
 };
 export type TaskWatcherFeature = {
-	watcher: WatchHandle;
-	watchSource: WatchSource<boolean>;
+	watcher: SignalUnsubscribe;
+	watchSource: ActivitySignalSource<boolean>;
 };
 
-export type Task = ComponentTask | ListenerTask;
+export type Task = ArtifactTask | ListenerTask;
 
 export type ListenerRegisterResult = {
 	taskId: string;

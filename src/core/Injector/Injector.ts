@@ -1,15 +1,24 @@
-import type { Component, Plugin, Ref, WatchSource } from 'vue';
+import type { Plugin } from 'vue';
+import { registerAdapter } from '../adapter/Adapter';
+import { createVueAdapter } from '../adapter/vue/VueAdapter';
+import { VuePlugin } from '../adapter/vue/VuePlugin';
 import { ObserverHub } from '../hooks/ObserverHub';
 import type { ObserveEmitter, ObserveEventName, ObserveHook } from '../hooks/type';
 import { createObserveEmitter, registerHooks } from '../hooks/util';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
+import type { ActivitySignalSource } from '../signal/types';
 import { TaskContext } from '../Task/TaskContext';
 import { TaskLifeCycle } from '../Task/TaskLifeCycle';
 import { TaskRegister } from '../Task/TaskRegister';
 import { TaskRunner } from '../Task/TaskRunner';
-import type { ListenerRegisterResult, RegisterResult } from '../Task/types';
-import type { ActionEvent, ComponentOptions, InjectionConfig } from './types';
+import type {
+	_RegisterResult,
+	ListenerRegisterResult,
+	RegisterResult,
+	TaskActivitySignal
+} from '../Task/types';
+import type { ActionEvent, ArtifactOptions, InjectionConfig } from './types';
 
 export class Injector {
 	// Unified task context containing all component-related data
@@ -30,7 +39,7 @@ export class Injector {
 	constructor(config: Partial<InjectionConfig> = {}) {
 		this.logger = config.logger ?? this.injectConfig.logger;
 		this.observer = config.observer ?? new ObserverHub(this.logger);
-
+		registerAdapter(createVueAdapter(this.logger));
 		const emitObserve: ObserveEmitter = createObserveEmitter(this.observer);
 
 		this.injectConfig = {
@@ -75,17 +84,21 @@ export class Injector {
 		listenAt: string,
 		event: string,
 		callback: EventListener,
-		activitySignal?: () => Ref<boolean>
+		activitySignal?: TaskActivitySignal
 	): ListenerRegisterResult {
 		return this.taskRegister.registerListener(listenAt, event, callback, activitySignal);
 	}
 
-	public register(
+	public register<TArtifact>(
 		injectAt: string,
-		component: Component,
-		option?: ComponentOptions
+		artifact: TArtifact,
+		option?: ArtifactOptions
 	): RegisterResult {
-		const result = this.taskRegister.register(injectAt, component, option);
+		const result = this.taskRegister.register(injectAt, artifact, option);
+		return this.wrapRegisterResult(result);
+	}
+
+	private wrapRegisterResult(result: _RegisterResult): RegisterResult {
 		return {
 			enableAlive: () => this.taskLifeCycle.enableAlive(result.taskId),
 			disableAlive: () => this.taskLifeCycle.disableAlive(result.taskId),
@@ -100,7 +113,13 @@ export class Injector {
 	public disableAlive(taskId: string): void {
 		this.taskLifeCycle.disableAlive(taskId);
 	}
-
+	/**
+	 * @internal
+	 * Obtain the original execution context of the task.
+	 * * @warning
+	 * This API is an internal implementation, extremely unstable, and subject to frequent changes due to refactoring.
+	 * Direct manipulation of the context may bypass the framework's state management and lead to memory leaks or race conditions.
+	 */
 	public getContext(): TaskContext | undefined {
 		return this.taskContext;
 	}
@@ -138,25 +157,25 @@ export class Injector {
 	}
 
 	public use<T extends Plugin>(plugin: T): this {
-		this.taskContext.use(plugin);
+		VuePlugin.use(plugin);
 		return this;
 	}
 
 	public usePlugins(...plugins: Plugin[]): this {
-		this.taskContext.usePlugins(...plugins);
+		VuePlugin.usePlugins(...plugins);
 		return this;
 	}
 
 	public getPlugins(): Plugin[] {
-		return this.taskContext.getPlugins();
+		return VuePlugin.getPlugins();
 	}
 
 	public setPinia<T extends Plugin>(pinia: T): void {
-		this.taskContext.setPinia(pinia);
+		VuePlugin.setPinia(pinia);
 	}
 
 	public getPinia(): Plugin | undefined {
-		return this.taskContext.getPinia();
+		return VuePlugin.getPinia();
 	}
 
 	public reset(taskId: string): void {
@@ -175,7 +194,7 @@ export class Injector {
 		this.taskLifeCycle.destroyAll();
 	}
 	// TODO: add config option to enable flush sync or pre
-	public bindListenerSignal(taskId: string, source: WatchSource<boolean>): boolean {
+	public bindListenerSignal(taskId: string, source: ActivitySignalSource<boolean>): boolean {
 		return this.taskRunner.bindListenerSignal(taskId, source);
 	}
 

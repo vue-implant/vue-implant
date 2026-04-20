@@ -8,7 +8,7 @@ import { createDomObserveEmitFactory } from '../payload/createDomObserveEmitFact
 import { DOMWatcher } from '../watcher/DomWatcher';
 import type { TaskContext } from './TaskContext';
 import type { Task } from './types';
-import { getTaskInjectAt, isComponentTask } from './util';
+import { getTaskInjectAt, isArtifactTask } from './util';
 
 export class TaskLifeCycle {
 	private readonly taskContext: TaskContext;
@@ -39,7 +39,7 @@ export class TaskLifeCycle {
 		}
 
 		// enableAlive only applies to component tasks
-		if (!isComponentTask(context)) {
+		if (!isArtifactTask(context)) {
 			this.logger.warn(`enableAlive is not applicable to non-component task "${taskId}"`);
 			return;
 		}
@@ -57,7 +57,7 @@ export class TaskLifeCycle {
 			buildAliveObservePayload('alive:enable', {
 				taskId,
 				kind: 'component',
-				injectAt: context.componentInjectAt,
+				injectAt: context.injectAt,
 				status: context.taskStatus,
 				scope: context.scope
 			})
@@ -66,8 +66,8 @@ export class TaskLifeCycle {
 		context.disableAlive = () => {};
 
 		// Case 1: Component is already mounted and connected - set up the alive observer directly
-		if (context.app && context.appRoot?.isConnected) {
-			const matchedElement = context.appRoot.parentElement;
+		if (context.mountHandle && context.appRoot?.isConnected) {
+			const matchedElement = context.hostElement ?? context.appRoot.parentElement;
 			if (!matchedElement) {
 				this.logger.warn(
 					`Task "${taskId}": host element not found, unable to activate alive observer`
@@ -76,7 +76,7 @@ export class TaskLifeCycle {
 			}
 
 			const currentDocument = matchedElement.ownerDocument || document;
-			const injectAt = context.componentInjectAt;
+			const injectAt = context.injectAt;
 
 			const stopHandler = DOMWatcher.onDomAlive(
 				matchedElement,
@@ -126,16 +126,16 @@ export class TaskLifeCycle {
 		// Case 2: Component app exists but appRoot is disconnected from DOM
 		// This happens when disableAlive was called after the node was removed but before cleanup.
 		// We need to reset the state and re-trigger onDomReady for re-injection.
-		if (context.app && !context.appRoot?.isConnected) {
+		if (context.mountHandle && !context.appRoot?.isConnected) {
 			this.taskContext.reset(taskId);
 		}
 
 		// Case 3: Component is not mounted (e.g., removed from DOM after disableAlive was called)
 		// Re-trigger onDomReady to wait for the target element and re-inject
-		if (!context.app) {
+		if (!context.mountHandle) {
 			let cancelled = false;
 			const stopReadyObserver = DOMWatcher.onDomReady(
-				context.componentInjectAt,
+				context.injectAt,
 				(el): void => {
 					if (cancelled || !context.alive) {
 						this.logger.warn(
@@ -153,7 +153,7 @@ export class TaskLifeCycle {
 						emit: this.emit,
 						taskId,
 						kind: 'component',
-						injectAt: context.componentInjectAt,
+						injectAt: context.injectAt,
 						root: document
 					})
 				}
@@ -166,7 +166,7 @@ export class TaskLifeCycle {
 					buildAliveObservePayload('alive:observeStop', {
 						taskId,
 						kind: 'component',
-						injectAt: context.componentInjectAt,
+						injectAt: context.injectAt,
 						status: context.taskStatus,
 						scope: context.scope,
 						observerMode: 'await-target'
@@ -180,7 +180,7 @@ export class TaskLifeCycle {
 				buildAliveObservePayload('alive:observeStart', {
 					taskId,
 					kind: 'component',
-					injectAt: context.componentInjectAt,
+					injectAt: context.injectAt,
 					status: context.taskStatus,
 					scope: context.scope,
 					observerMode: 'await-target'
@@ -198,7 +198,7 @@ export class TaskLifeCycle {
 			return;
 		}
 
-		if (!isComponentTask(context)) {
+		if (!isArtifactTask(context)) {
 			this.logger.warn(`disableAlive is not applicable to non-component task "${taskId}"`);
 			return;
 		}
@@ -219,7 +219,7 @@ export class TaskLifeCycle {
 			buildAliveObservePayload('alive:disable', {
 				taskId,
 				kind: 'component',
-				injectAt: context.componentInjectAt,
+				injectAt: context.injectAt,
 				status: context.taskStatus,
 				scope: context.scope
 			})
@@ -229,10 +229,10 @@ export class TaskLifeCycle {
 			buildAliveObservePayload('alive:observeStop', {
 				taskId,
 				kind: 'component',
-				injectAt: context.componentInjectAt,
+				injectAt: context.injectAt,
 				status: context.taskStatus,
 				scope: context.scope,
-				observerMode: context.app ? 'mounted' : 'await-target'
+				observerMode: context.mountHandle ? 'mounted' : 'await-target'
 			})
 		);
 	}
@@ -264,7 +264,7 @@ export class TaskLifeCycle {
 				status: preStatus
 			})
 		);
-		if (isComponentTask(context) && context.alive) {
+		if (isArtifactTask(context) && context.alive) {
 			this.disableAlive(taskId);
 		}
 		this.taskContext.destroy(taskId);
@@ -282,7 +282,7 @@ export class TaskLifeCycle {
 	public destroyAll(): void {
 		for (const id of this.taskContext.keys()) {
 			const context: Task | undefined = this.taskContext.get(id);
-			if (context && isComponentTask(context) && context.alive) {
+			if (context && isArtifactTask(context) && context.alive) {
 				this.disableAlive(id);
 			}
 		}
@@ -315,7 +315,7 @@ export class TaskLifeCycle {
 				status: preStatus
 			})
 		);
-		if (isComponentTask(context) && context.alive) {
+		if (isArtifactTask(context) && context.alive) {
 			this.disableAlive(taskId);
 		}
 		this.taskContext.reset(taskId);
@@ -333,7 +333,7 @@ export class TaskLifeCycle {
 	public resetAll(): void {
 		for (const id of this.taskContext.keys()) {
 			const context: Task | undefined = this.taskContext.get(id);
-			if (context && isComponentTask(context) && context.alive) {
+			if (context && isArtifactTask(context) && context.alive) {
 				this.disableAlive(id);
 			}
 		}

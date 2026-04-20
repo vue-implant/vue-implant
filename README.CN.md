@@ -131,7 +131,7 @@ type InjectionConfig = {
 
 ### `Injector.register(injectAt: string, component: Component, option?: ComponentOptions): RegisterResult`
 
-注册组件注入任务。
+注册组件注入任务。运行时会在内部解析匹配的挂载适配器，默认内置 Vue 组件支持。
 
 参数说明：
 
@@ -149,14 +149,14 @@ type InjectionConfig = {
 | `on.listenAt` | yes | `string` | 监听目标元素选择器。 |
 | `on.type` | yes | `string` | 事件类型。 |
 | `on.callback` | yes | `EventListener` | 事件回调。 |
-| `on.activitySignal` | no | `() => Ref<boolean>` | 外部控制监听开关的信号。 |
+| `on.activitySignal` | no | `() => ActivitySignalSource<boolean>` | 外部控制监听开关的信号。`1.x` 仍兼容 Vue `ref` 类对象，但已标记废弃。 |
 | `hooks` | no | `LifecycleHookMap` | 组件级生命周期钩子（仅 `register` 组件任务支持）。 |
 
 返回值：
 
 | Property | Type | Description | Default |
 | --- | --- | --- | --- |
-| `taskId` | `string` | 任务唯一标识。 | `[组件名]@[CSS选择器]` |
+| `taskId` | `string` | 任务唯一标识。 | `[ArtifactName]@[CSS选择器]` 或 `artifact-[CSS选择器]` |
 | `isSuccess` | `boolean` | 注册是否成功。 | 成功 `true`，失败 `false` |
 | `enableAlive` | `() => void` | 手动开启重注入；注册失败时为空函数。 | 回调函数 |
 | `disableAlive` | `() => void` | 手动关闭重注入；注册失败时为空函数。 | 回调函数 |
@@ -167,7 +167,7 @@ type InjectionConfig = {
 > [!NOTE]
 > 支持在 `run()` 后继续 `register()`，新增任务会在下一次 `run()` 时激活。
 
-### `Injector.registerListener(listenAt: string, event: string, callback: EventListener, activitySignal?: () => Ref<boolean>): ListenerRegisterResult`
+### `Injector.registerListener(listenAt: string, event: string, callback: EventListener, activitySignal?: () => ActivitySignalSource<boolean>): ListenerRegisterResult`
 
 注册纯监听任务（不注入组件）。
 
@@ -176,7 +176,7 @@ type InjectionConfig = {
 - `listenAt`：监听目标元素选择器。
 - `event`：监听事件类型。
 - `callback`：事件回调。
-- `activitySignal`：可选，返回 `Ref<boolean>` 用于动态控制监听开关。
+- `activitySignal`：可选，返回 `ActivitySignalSource<boolean>` 用于动态控制监听开关。
 
 返回值：
 
@@ -193,7 +193,7 @@ type InjectionConfig = {
 
 ### `Injector.use(plugin: Plugin): this`
 
-为当前 `Injector` 创建的每个注入子应用注册共享 Vue 插件。
+在当前运行时的单例 Vue 插件注册表中注册共享插件，供 `Injector` 创建的 Vue 子应用复用。
 
 **最小示例：**
 
@@ -229,7 +229,7 @@ injector.usePlugins(pinia, analyticsPlugin);
 
 ### `Injector.getPlugins(): Plugin[]`
 
-返回当前注入器上已注册的共享插件列表。
+返回当前单例 Vue 插件注册表中的共享插件列表。
 
 ### `Injector.setPinia(pinia: Plugin): void`
 
@@ -241,6 +241,15 @@ injector.usePlugins(pinia, analyticsPlugin);
 ### `Injector.getPinia(): Plugin | undefined`
 
 返回此前通过 `setPinia()` 设置的 Pinia 实例。
+
+### `VuePlugin`
+
+单例共享插件注册表，提供高级编排能力。`Injector.use()`、`Injector.usePlugins()`、`Injector.setPinia()` 及相关 getter 都基于它实现。
+
+可用方法：`use`、`usePlugins`、`getPlugins`、`setPinia`、`getPinia`、`clear`。
+
+> [!NOTE]
+> `VuePlugin` 在当前运行时内是全局共享的。一个 `Injector` 注册的插件，对同页上的其他 `Injector` 也可见。
 
 ### `Injector.getObserver(): ObserverHub`
 
@@ -269,6 +278,10 @@ injector.usePlugins(pinia, analyticsPlugin);
 ### `Injector.offAny(hook: ObserveHook): void`
 
 移除此前通过 `onAny` 注册的钩子。
+
+### `Injector.getLogger(): ILogger`
+
+返回当前注入器及其默认观察链路所使用的 logger 实例。
 
 ### 日志
 
@@ -348,17 +361,17 @@ injector.register('#app', App, {
 
 | Event | Payload fields |
 | --- | --- |
-| `register:start` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName?`, `meta.listenerEvent?`, `meta.listenAt?`, `meta.alive?`, `meta.scope?`, `meta.timeout?`, `meta.withEvent?` |
-| `register:success` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName?`, `meta.listenerEvent?`, `meta.listenAt?`, `meta.alive?`, `meta.scope?`, `meta.timeout?`, `meta.withEvent?` |
-| `register:duplicate` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName?`, `meta.listenerEvent?` |
-| `register:error` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.componentName?`, `meta.listenerEvent?` |
+| `register:start` | `taskId`, `kind`, `injectAt`, `status`, `meta.artifactName?`, `meta.listenerEvent?`, `meta.listenAt?`, `meta.alive?`, `meta.scope?`, `meta.timeout?`, `meta.withEvent?` |
+| `register:success` | `taskId`, `kind`, `injectAt`, `status`, `meta.artifactName?`, `meta.listenerEvent?`, `meta.listenAt?`, `meta.alive?`, `meta.scope?`, `meta.timeout?`, `meta.withEvent?` |
+| `register:duplicate` | `taskId`, `kind`, `injectAt`, `status`, `meta.artifactName?`, `meta.listenerEvent?` |
+| `register:error` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.artifactName?`, `meta.listenerEvent?` |
 | `run:start` | `meta.totalTasks`, `meta.idleTasks`, `meta.pendingTasks`, `meta.activeTasks` |
 | `run:taskScheduled` | `taskId`, `kind`, `injectAt`, `status`, `preStatus`, `meta.timeout` |
 | `run:taskSkipped` | `taskId`, `kind`, `injectAt`, `status`, `meta.skipReason` |
 | `target:ready` | `taskId`, `kind`, `injectAt`, `status` |
-| `inject:start` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName`, `meta.alive`, `meta.scope`, `meta.withEvent` |
-| `inject:success` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName`, `meta.alive`, `meta.scope` |
-| `inject:fail` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.componentName` |
+| `inject:start` | `taskId`, `kind`, `injectAt`, `status`, `meta.artifactName`, `meta.alive`, `meta.scope`, `meta.withEvent` |
+| `inject:success` | `taskId`, `kind`, `injectAt`, `status`, `meta.artifactName`, `meta.alive`, `meta.scope` |
+| `inject:fail` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.artifactName` |
 | `listener:open` | `taskId`, `kind`, `injectAt`, `status`, `meta.listenerEvent`, `meta.listenAt` |
 | `listener:close` | `taskId`, `kind`, `injectAt`, `status`, `meta.listenerEvent`, `meta.listenAt` |
 | `listener:attachFail` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.listenerEvent`, `meta.listenAt` |
@@ -376,7 +389,7 @@ injector.register('#app', App, {
 | `task:afterDestroy` | `taskId`, `kind`, `injectAt`, `preStatus` |
 | `resource:watcherReleased` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource` |
 | `resource:listenerReleased` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource`, `meta.listenerEvent?`, `meta.listenAt?` |
-| `resource:componentUnmounted` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource`, `meta.componentName` |
+| `resource:componentUnmounted` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource`, `meta.artifactName` |
 | `dom:readyFound` | `injectAt`, `taskId`, `kind`, `durationMs`, `meta.root` |
 | `dom:readyTimeout` | `injectAt`, `taskId`, `kind`, `durationMs`, `meta.root` |
 | `dom:removed` | `injectAt`, `taskId`, `kind`, `meta.phase` |
@@ -514,24 +527,52 @@ injector.destroyAll();
 - 统一调用一次上下文级别全量重置，清理每个任务的运行时字段。
 - 保留任务注册与任务 ID，不做销毁。
 
-### `Injector.bindListenerSignal(taskId: string, source: WatchSource<boolean>): boolean`
+### `createActivityStore<T>(initialValue: T)`
+
+创建一个轻量级 activity store，可直接用于监听开关相关 API。
+
+返回对象约定：
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `get` | `() => T` | 读取当前值。 |
+| `subscribe` | `(listener: (value: T) => void) => SignalUnsubscribe` | 订阅值变化。 |
+| `set` | `(value: T) => void` | 直接设置当前值。 |
+| `update` | `(updater: (value: T) => T) => void` | 基于当前值计算下一个值。 |
+
+**最小示例：**
+
+```ts
+import { createActivityStore, Injector } from 'vue-implant';
+
+const injector = new Injector();
+const activity = createActivityStore(true);
+
+injector.registerListener('#btn', 'click', () => console.log('clicked'), () => activity);
+
+activity.set(false);
+```
+
+> [!NOTE]
+> `1.x` 仍兼容传入 Vue `ref` 类对象，但该路径已废弃并计划在 `2.0` 移除。新代码建议优先使用 `createActivityStore()`。
+
+### `Injector.bindListenerSignal(taskId: string, source: ActivitySignalSource<boolean>): boolean`
 
 将外部响应式信号绑定到任务事件开关：`true` 时开启监听，`false` 时关闭监听。
 
 参数说明：
 
 - `taskId`：任务 ID（需是带 `on` 配置的任务）。
-- `source`：`WatchSource<boolean>`，通常可直接传 `ref<boolean>`。
+- `source`：`ActivitySignalSource<boolean>`，通常可直接传 `createActivityStore()` 创建的 store。
 
 **最小示例：**
 
 ```ts
-import { ref } from 'vue';
-import { Injector } from 'vue-implant';
+import { createActivityStore, Injector } from 'vue-implant';
 import TestAppComponent from './TestAppComponent.vue';
 
 const injector = new Injector();
-const enabled = ref(true);
+const enabled = createActivityStore(true);
 
 const { taskId } = injector.register('#app', TestAppComponent, {
 	on: {
@@ -573,6 +614,14 @@ injector.controlListener(taskId, Action.OPEN);
 injector.controlListener(taskId, Action.CLOSE);
 ```
 
+### 额外导出的类型
+
+包同时导出了一些面向集成和工具链场景的 TypeScript 类型：
+
+- 适配器相关：`MountAdapter`、`ResolvableMountAdapter`、`AdapterMountInput`、`AdapterMountResult`、`AdapterUnmountInput`、`AdapterUnmountReason`、`AdapterResolver`
+- Vue 挂载相关：`VueMountArtifact`、`VueMountHandle`、`VueMountInstance`
+- Signal 相关：`ActivitySignalSource`、`ActivitySignalSubscribable`、`SignalUnsubscribe`
+
 
 
 ## 限制 ⚠️
@@ -602,6 +651,14 @@ injector.controlListener(taskId, Action.CLOSE);
 ### 5) Pinia 应该用 `use()` 还是 `setPinia()`？
 
 新代码优先使用 `use(createPinia())`。`setPinia()` 在 `1.x` 里仍然保留，作为兼容别名，现有接入不需要立刻迁移。
+
+### 6) `activitySignal` 或 `bindListenerSignal` 还能传 Vue `ref<boolean>` 吗？
+
+可以，`1.x` 里仍兼容，但这条兼容路径已经废弃，并计划在 `2.0` 移除。新代码建议优先使用 `createActivityStore(true)`。
+
+### 7) `use()` 注册的插件是每个 `Injector` 独立的吗？
+
+不是。它们存放在单例 `VuePlugin` 注册表中，因此同一运行时里的多个 `Injector` 会共享这些插件。
 
 ## 路线图 🛣️
 

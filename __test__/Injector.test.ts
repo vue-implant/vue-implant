@@ -1,15 +1,17 @@
 import { createPinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ref } from 'vue';
 import { ObserverHub } from '../src/core/hooks/ObserverHub';
 import { Injector } from '../src/core/Injector/Injector';
 import { Action } from '../src/core/Injector/types';
 import { Logger } from '../src/core/logger/Logger';
+import { createActivityStore } from '../src/core/signal/observeActivitySignal';
 import { TaskContext } from '../src/core/Task/TaskContext';
 import type { TaskLifeCycle } from '../src/core/Task/TaskLifeCycle';
 import type { TaskRegister } from '../src/core/Task/TaskRegister';
 import type { TaskRunner } from '../src/core/Task/TaskRunner';
+import type { ArtifactTask } from '../src/core/Task/types';
 import { DOMWatcher } from '../src/core/watcher/DomWatcher';
+import { createVueComponent } from './factory/TaskFactor';
 
 describe('Injector', () => {
 	let injector: Injector;
@@ -40,12 +42,33 @@ describe('Injector', () => {
 
 	it('should forward register to TaskRegister and wrap lifecycle callbacks', () => {
 		const registerSpy = vi.spyOn(taskRegister, 'register');
-		const enableSpy = vi.spyOn(taskLifeCycle, 'enableAlive').mockImplementation(() => {});
-		const disableSpy = vi.spyOn(taskLifeCycle, 'disableAlive').mockImplementation(() => {});
+		const enableSpy = vi.spyOn(taskLifeCycle, 'enableAlive').mockImplementation(() => { });
+		const disableSpy = vi.spyOn(taskLifeCycle, 'disableAlive').mockImplementation(() => { });
+		const component = createVueComponent('FacadeComp');
 
-		const result = injector.register('#app', { name: 'FacadeComp' });
+		const result = injector.register('#app', component);
 
-		expect(registerSpy).toHaveBeenCalledWith('#app', { name: 'FacadeComp' }, undefined);
+		expect(registerSpy).toHaveBeenCalledWith('#app', component, undefined);
+		result.enableAlive();
+		result.disableAlive();
+		expect(enableSpy).toHaveBeenCalledWith(result.taskId);
+		expect(disableSpy).toHaveBeenCalledWith(result.taskId);
+	});
+
+	it('should forward register to TaskRegister and wrap lifecycle callbacks', () => {
+		const registerSpy = vi.spyOn(taskRegister, 'register');
+		const enableSpy = vi.spyOn(taskLifeCycle, 'enableAlive').mockImplementation(() => { });
+		const disableSpy = vi.spyOn(taskLifeCycle, 'disableAlive').mockImplementation(() => { });
+		const artifact = createVueComponent('artifact');
+		const adapter = {
+			name: 'plain',
+			mount: vi.fn(() => ({ handle: {} })),
+			unmount: vi.fn()
+		};
+
+		const result = injector.register('#artifact-app', artifact);
+
+		expect(registerSpy).toHaveBeenCalledWith('#artifact-app', artifact, undefined);
 		result.enableAlive();
 		result.disableAlive();
 		expect(enableSpy).toHaveBeenCalledWith(result.taskId);
@@ -62,14 +85,14 @@ describe('Injector', () => {
 	});
 
 	it('should forward run to TaskRunner', () => {
-		const runSpy = vi.spyOn(taskRunner, 'run').mockImplementation(() => {});
+		const runSpy = vi.spyOn(taskRunner, 'run').mockImplementation(() => { });
 		injector.run();
 		expect(runSpy).toHaveBeenCalledOnce();
 	});
 
 	it('should forward enableAlive and disableAlive to TaskLifeCycle', () => {
-		const enableSpy = vi.spyOn(taskLifeCycle, 'enableAlive').mockImplementation(() => {});
-		const disableSpy = vi.spyOn(taskLifeCycle, 'disableAlive').mockImplementation(() => {});
+		const enableSpy = vi.spyOn(taskLifeCycle, 'enableAlive').mockImplementation(() => { });
+		const disableSpy = vi.spyOn(taskLifeCycle, 'disableAlive').mockImplementation(() => { });
 
 		injector.enableAlive('task-a');
 		injector.disableAlive('task-a');
@@ -79,7 +102,7 @@ describe('Injector', () => {
 	});
 
 	it('should forward bindListenerSignal and controlListener to TaskRunner', () => {
-		const source = ref(true);
+		const source = createActivityStore(true);
 		const bindSpy = vi.spyOn(taskRunner, 'bindListenerSignal').mockReturnValue(true);
 		const controlSpy = vi.spyOn(taskRunner, 'controlListener').mockReturnValue(true);
 
@@ -100,7 +123,7 @@ describe('Injector', () => {
 	it('should set timeout in global config', () => {
 		const onDomReadySpy = vi.spyOn(DOMWatcher, 'onDomReady');
 		const testInjector = new Injector({ timeout: 10000 });
-		testInjector.register('#app', { name: 'AppComp' });
+		testInjector.register('#app', createVueComponent('AppComp'));
 		testInjector.run();
 
 		expect(onDomReadySpy).toHaveBeenCalledWith(
@@ -121,13 +144,9 @@ describe('Injector', () => {
 	it('should run task with custom timeout', () => {
 		const onDomReadySpy = vi.spyOn(DOMWatcher, 'onDomReady');
 		const testInjector = new Injector();
-		testInjector.register(
-			'#app',
-			{ name: 'AppComp' },
-			{
-				timeout: 5000
-			}
-		);
+		testInjector.register('#app', createVueComponent('AppComp'), {
+			timeout: 5000
+		});
 		testInjector.run();
 
 		expect(onDomReadySpy).toHaveBeenCalledWith(
@@ -163,31 +182,31 @@ describe('Injector', () => {
 	});
 
 	it('should reset task context', () => {
-		injector.register('#reset', { name: 'ResetComp' });
+		injector.register('#reset', createVueComponent('ResetComp'));
 		injector.reset('task-a');
 		const context = taskContext.get('task-a');
 		expect(context).toBeUndefined();
 	});
 
 	it('should reset all task contexts', () => {
-		injector.register('#reset', { name: 'ResetComp' });
-		injector.register('#reset', { name: 'ResetComp2' });
-		injector.register('#reset', { name: 'ResetComp3' });
+		injector.register('#reset', createVueComponent('ResetComp'));
+		injector.register('#reset', createVueComponent('ResetComp2'));
+		injector.register('#reset', createVueComponent('ResetComp3'));
 		injector.resetAll();
 		expect([...taskContext.keys()]).toHaveLength(3);
 	});
 
 	it('should destroy task context', () => {
-		injector.register('#destroy', { name: 'DestroyComp' });
+		injector.register('#destroy', createVueComponent('DestroyComp'));
 		injector.destroy('task-destroy');
 		const context = taskContext.get('task-destroy');
 		expect(context).toBeUndefined();
 	});
 
 	it('should destroy all task contexts', () => {
-		injector.register('#destroy', { name: 'DestroyComp' });
-		injector.register('#destroy', { name: 'DestroyComp2' });
-		injector.register('#destroy', { name: 'DestroyComp3' });
+		injector.register('#destroy', createVueComponent('DestroyComp'));
+		injector.register('#destroy', createVueComponent('DestroyComp2'));
+		injector.register('#destroy', createVueComponent('DestroyComp3'));
 		injector.destroyAll();
 		expect([...taskContext.keys()]).toHaveLength(0);
 	});
@@ -197,13 +216,39 @@ describe('Injector', () => {
 		host.id = 'smoke';
 		document.body.appendChild(host);
 
-		const { taskId } = injector.register('#smoke', { name: 'SmokeComp', render: () => null });
+		const { taskId } = injector.register('#smoke', createVueComponent('SmokeComp'));
 		injector.run();
 
-		const context = taskContext.get(taskId);
+		const context = taskContext.get<ArtifactTask>(taskId);
 		expect(context?.taskStatus).toBe('active');
-		expect(context?.app).toBeDefined();
+		expect(context?.mountHandle).toBeDefined();
 		expect(context?.appRoot?.parentElement).toBe(host);
+	});
+
+	it('should pass integration smoke for register with a non-Vue adapter', () => {
+		const host = document.createElement('div');
+		host.id = 'artifact-smoke';
+		document.body.appendChild(host);
+
+		const artifact = createVueComponent('artifact');
+		const { taskId } = injector.register('#artifact-smoke', artifact);
+
+		injector.run();
+
+		const context = taskContext.get<ArtifactTask>(taskId);
+		expect(context?.taskStatus).toBe('active');
+		expect(context?.artifactName).toBe('artifact');
+		expect(context?.artifact).toBe(artifact);
+		expect(context?.mountHandle).toBeDefined();
+		expect(context?.instance).toBeDefined();
+		expect(context?.appRoot?.parentElement).toBe(host);
+
+		injector.destroy(taskId);
+
+		expect(context?.mountHandle).toBeUndefined();
+		expect(context?.instance).toBeUndefined();
+		expect(context?.appRoot).toBeUndefined();
+		expect(taskContext.get(taskId)).toBeUndefined();
 	});
 
 	it('should expose ObserverHub and receive integration events', () => {
@@ -219,8 +264,7 @@ describe('Injector', () => {
 		document.body.appendChild(host);
 
 		observedInjector.register('#obs-smoke', {
-			name: 'ObservedComp',
-			render: () => null
+			...createVueComponent('ObservedComp')
 		});
 		observedInjector.run();
 
@@ -254,8 +298,7 @@ describe('Injector', () => {
 		document.body.appendChild(host);
 
 		const { taskId } = hookedInjector.register('#hooked-host', {
-			name: 'HookedComp',
-			render: () => null
+			...createVueComponent('HookedComp')
 		});
 
 		hookedInjector.offTask('hooked-host-task');

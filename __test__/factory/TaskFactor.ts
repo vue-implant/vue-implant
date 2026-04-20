@@ -1,6 +1,9 @@
-import type { App, Component, ComponentPublicInstance, Ref } from 'vue';
+import type { Component } from 'vue';
+import { createVueAdapter } from '../../src/core/adapter/vue/VueAdapter';
+import { Logger } from '../../src/core/logger/Logger';
+import type { ActivitySignalSource } from '../../src/core/signal/types';
 import type {
-	ComponentTask,
+	ArtifactTask,
 	ListenerTask,
 	Task,
 	TaskListenerFeature,
@@ -13,21 +16,23 @@ type TaskBaseInput = {
 	taskStatus?: TaskStatus;
 	timeout?: number;
 	withEvent?: boolean;
-	hooks?: ComponentTask['hooks'];
+	hooks?: ArtifactTask['hooks'];
 	watcher?: TaskWatcherFeature;
 };
 
-export type CreateComponentTaskInput = TaskBaseInput & {
+export type CreateArtifactTaskInput = TaskBaseInput & {
 	kind: 'component';
-	componentName?: string;
-	componentInjectAt?: string;
-	component?: Component;
+	artifactName?: string;
+	injectAt?: string;
+	artifact?: Component;
+	adapter?: ArtifactTask['adapter'];
 	alive?: boolean;
 	scope?: 'local' | 'global';
 	listener?: TaskListenerFeature;
-	app?: App<Element>;
+	mountHandle?: unknown;
+	hostElement?: HTMLElement;
 	appRoot?: HTMLElement;
-	instance?: ComponentPublicInstance;
+	instance?: unknown;
 	isObserver?: boolean;
 	disableAlive?: () => void;
 };
@@ -38,13 +43,17 @@ export type CreateListenerTaskInput = TaskBaseInput & {
 	event?: string;
 	callback?: EventListener;
 	controller?: AbortController;
-	activitySignal?: () => Ref<boolean>;
+	activitySignal?: () => ActivitySignalSource<boolean>;
 };
 
-export function createTask(input: CreateComponentTaskInput): ComponentTask;
+export function createTask(input: CreateArtifactTaskInput): ArtifactTask;
 export function createTask(input: CreateListenerTaskInput): ListenerTask;
-export function createTask(input: CreateComponentTaskInput | CreateListenerTaskInput): Task {
+export function createTask(input: CreateArtifactTaskInput | CreateListenerTaskInput): Task {
 	if (input.kind === 'component') {
+		const artifactName = input.artifactName ?? 'TestComponent';
+		const injectAt = input.injectAt ?? '#app';
+		const artifact = input.artifact ?? createVueComponent(artifactName);
+		const logger = new Logger();
 		return {
 			taskId: input.taskId,
 			kind: 'component',
@@ -53,15 +62,17 @@ export function createTask(input: CreateComponentTaskInput | CreateListenerTaskI
 			withEvent: input.withEvent ?? false,
 			...(input.hooks ? { hooks: input.hooks } : {}),
 			...(input.watcher ? { watcher: input.watcher } : {}),
-			componentName: input.componentName ?? 'TestComponent',
-			componentInjectAt: input.componentInjectAt ?? '#app',
-			component: input.component ?? { name: 'TestComponent', render: () => null },
+			artifactName,
+			injectAt,
+			artifact,
+			adapter: input.adapter ?? createVueAdapter(logger),
 			alive: input.alive ?? false,
 			scope: input.scope ?? 'local',
 			...(input.listener ? { listener: input.listener } : {}),
-			...(input.app ? { app: input.app } : {}),
+			...(input.mountHandle !== undefined ? { mountHandle: input.mountHandle } : {}),
+			...(input.hostElement !== undefined ? { hostElement: input.hostElement } : {}),
 			...(input.appRoot ? { appRoot: input.appRoot } : {}),
-			...(input.instance ? { instance: input.instance } : {}),
+			...(input.instance !== undefined ? { instance: input.instance } : {}),
 			...(input.isObserver !== undefined ? { isObserver: input.isObserver } : {}),
 			...(input.disableAlive ? { disableAlive: input.disableAlive } : {})
 		};
@@ -83,7 +94,7 @@ export function createTask(input: CreateComponentTaskInput | CreateListenerTaskI
 	};
 }
 
-export function createComponentTask(input: Omit<CreateComponentTaskInput, 'kind'>): ComponentTask {
+export function createArtifactTask(input: Omit<CreateArtifactTaskInput, 'kind'>): ArtifactTask {
 	return createTask({
 		...input,
 		kind: 'component'
@@ -95,4 +106,16 @@ export function createListenerTask(input: Omit<CreateListenerTaskInput, 'kind'>)
 		...input,
 		kind: 'listener'
 	});
+}
+
+export function createVueComponent(name: string): Component {
+	return {
+		name,
+		render() {
+			return null;
+		},
+		__vccOpts: {
+			name
+		}
+	};
 }

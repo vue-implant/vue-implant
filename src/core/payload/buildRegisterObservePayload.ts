@@ -9,7 +9,7 @@ type RegisterObserveEventName =
 	| 'register:error';
 
 type RegisterObserveMeta = {
-	componentName?: string;
+	artifactName?: string;
 	listenerEvent?: string;
 	listenAt?: string;
 	alive?: boolean;
@@ -18,7 +18,7 @@ type RegisterObserveMeta = {
 	withEvent?: boolean;
 };
 
-type RegisterObserveIdentityMeta = Pick<RegisterObserveMeta, 'componentName' | 'listenerEvent'>;
+type RegisterObserveIdentityMeta = Pick<RegisterObserveMeta, 'artifactName' | 'listenerEvent'>;
 
 type RegisterObserveBase = {
 	taskId: string;
@@ -51,7 +51,7 @@ const registerObservePayloadBuilders = {
 		injectAt: input.injectAt,
 		status: input.status,
 		meta: {
-			componentName: input.componentName,
+			artifactName: input.artifactName,
 			listenerEvent: input.listenerEvent,
 			listenAt: input.listenAt,
 			alive: input.alive,
@@ -66,7 +66,7 @@ const registerObservePayloadBuilders = {
 		injectAt: input.injectAt,
 		status: input.status,
 		meta: {
-			componentName: input.componentName,
+			artifactName: input.artifactName,
 			listenerEvent: input.listenerEvent,
 			listenAt: input.listenAt,
 			alive: input.alive,
@@ -97,8 +97,8 @@ const registerObservePayloadBuilders = {
 >;
 
 function buildIdentityMeta(input: RegisterObserveIdentityMeta): RegisterObserveIdentityMeta {
-	if (input.componentName !== undefined) {
-		return { componentName: input.componentName };
+	if (input.artifactName !== undefined) {
+		return { artifactName: input.artifactName };
 	}
 
 	if (input.listenerEvent !== undefined) {

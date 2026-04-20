@@ -1,23 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { nextTick, ref, type WatchHandle } from 'vue';
+import type { WatchHandle } from 'vue';
+import { createVueAdapter } from '../src/core/adapter/vue/VueAdapter';
+import { VuePlugin } from '../src/core/adapter/vue/VuePlugin';
 import { ObserverHub } from '../src/core/hooks/ObserverHub';
 import type { ObserveEvent } from '../src/core/hooks/type';
 import { createObserveEmitter } from '../src/core/hooks/util';
 import { Action } from '../src/core/Injector/types';
 import { Logger } from '../src/core/logger/Logger';
+import { createActivityStore } from '../src/core/signal/observeActivitySignal';
 import { TaskContext } from '../src/core/Task/TaskContext';
 import { TaskRunner } from '../src/core/Task/TaskRunner';
-import type { ComponentTask, ListenerTask } from '../src/core/Task/types';
+import type { ArtifactTask, ListenerTask } from '../src/core/Task/types';
 import { DOMWatcher } from '../src/core/watcher/DomWatcher';
-import { createComponentTask, createListenerTask } from './factory/TaskFactor';
+import { createArtifactTask, createListenerTask, createVueComponent } from './factory/TaskFactor';
 
 describe('TaskRunner', () => {
 	let taskContext: TaskContext;
 	let taskRunner: TaskRunner;
+	let vueAdapter: ReturnType<typeof createVueAdapter>;
 
 	beforeEach(() => {
 		const observer = new ObserverHub();
+		const logger = new Logger();
 		taskContext = new TaskContext();
+		vueAdapter = createVueAdapter(logger);
 		taskRunner = new TaskRunner(
 			taskContext,
 			{
@@ -29,11 +35,12 @@ describe('TaskRunner', () => {
 			createObserveEmitter(observer)
 		);
 		document.body.innerHTML = '';
-		vi.spyOn(console, 'info').mockImplementation(() => {});
+		vi.spyOn(console, 'info').mockImplementation(() => { });
 	});
 
 	afterEach(() => {
 		vi.restoreAllMocks();
+		VuePlugin.clear();
 		document.body.innerHTML = '';
 	});
 
@@ -57,10 +64,10 @@ describe('TaskRunner', () => {
 
 		taskContext.set(
 			'run-idle-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'run-idle-task',
 				taskStatus: 'idle',
-				componentInjectAt: '#run-idle',
+				injectAt: '#run-idle',
 				timeout: 7000
 			})
 		);
@@ -77,10 +84,10 @@ describe('TaskRunner', () => {
 		);
 		taskContext.set(
 			'run-active-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'run-active-task',
 				taskStatus: 'active',
-				componentInjectAt: '#run-active'
+				injectAt: '#run-active'
 			})
 		);
 
@@ -88,7 +95,7 @@ describe('TaskRunner', () => {
 		taskContext.taskRecords.push({ taskId: 'run-pending-task', injectAt: '#run-pending' });
 		taskContext.taskRecords.push({ taskId: 'run-active-task', injectAt: '#run-active' });
 
-		vi.spyOn(DOMWatcher, 'onDomReady').mockReturnValue(() => {});
+		vi.spyOn(DOMWatcher, 'onDomReady').mockReturnValue(() => { });
 
 		const runEvents: ObserveEvent[] = [];
 		observer.onAny((event) => {
@@ -159,14 +166,14 @@ describe('TaskRunner', () => {
 	it('should schedule onDomReady and mark task pending on run', () => {
 		taskContext.set(
 			'task-a',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'task-a',
 				taskStatus: 'idle'
 			})
 		);
 		taskContext.taskRecords.push({ taskId: 'task-a', injectAt: '#app' });
 
-		const spy = vi.spyOn(DOMWatcher, 'onDomReady').mockReturnValue(() => {});
+		const spy = vi.spyOn(DOMWatcher, 'onDomReady').mockReturnValue(() => { });
 
 		taskRunner.run();
 
@@ -188,14 +195,14 @@ describe('TaskRunner', () => {
 	it('should skip task that is active or pending on run', () => {
 		taskContext.set(
 			'active-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'active-task',
 				taskStatus: 'active'
 			})
 		);
 		taskContext.set(
 			'pending-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'pending-task',
 				taskStatus: 'pending'
 			})
@@ -203,7 +210,7 @@ describe('TaskRunner', () => {
 		taskContext.taskRecords.push({ taskId: 'active-task', injectAt: '#a' });
 		taskContext.taskRecords.push({ taskId: 'pending-task', injectAt: '#b' });
 
-		const spy = vi.spyOn(DOMWatcher, 'onDomReady').mockReturnValue(() => {});
+		const spy = vi.spyOn(DOMWatcher, 'onDomReady').mockReturnValue(() => { });
 
 		taskRunner.run();
 
@@ -215,18 +222,18 @@ describe('TaskRunner', () => {
 		host.id = 'host';
 		document.body.appendChild(host);
 
-		const task = createComponentTask({
+		const task = createArtifactTask({
 			taskId: 'mount-task',
 			taskStatus: 'idle',
-			componentName: 'MountComp',
-			componentInjectAt: '#host',
-			component: { name: 'MountComp', render: () => null }
+			artifactName: 'MountComp',
+			injectAt: '#host',
+			artifact: createVueComponent('MountComp')
 		});
 
 		taskContext.set(task.taskId, task);
 		taskRunner.onTargetReady(host, task.taskId);
 
-		expect(task.app).toBeDefined();
+		expect(task.mountHandle).toBeDefined();
 		expect(task.appRoot?.parentElement).toBe(host);
 		expect(task.taskStatus).toBe('active');
 	});
@@ -299,12 +306,12 @@ describe('TaskRunner', () => {
 
 		taskContext.set(
 			'inject-observe-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'inject-observe-task',
 				taskStatus: 'idle',
-				componentName: 'InjectObserveComp',
-				componentInjectAt: '#inject-observe-host',
-				component: { name: 'InjectObserveComp', render: () => null },
+				artifactName: 'InjectObserveComp',
+				injectAt: '#inject-observe-host',
+				artifact: createVueComponent('InjectObserveComp'),
 				alive: true,
 				scope: 'global',
 				withEvent: true,
@@ -332,7 +339,7 @@ describe('TaskRunner', () => {
 			injectAt: '#inject-observe-host',
 			status: 'idle',
 			meta: {
-				componentName: 'InjectObserveComp',
+				artifactName: 'InjectObserveComp',
 				alive: true,
 				scope: 'global',
 				withEvent: true
@@ -346,7 +353,7 @@ describe('TaskRunner', () => {
 			injectAt: '#inject-observe-host',
 			status: 'idle',
 			meta: {
-				componentName: 'InjectObserveComp',
+				artifactName: 'InjectObserveComp',
 				alive: true,
 				scope: 'global'
 			}
@@ -369,12 +376,12 @@ describe('TaskRunner', () => {
 
 		taskContext.set(
 			'inject-fail-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'inject-fail-task',
 				taskStatus: 'pending',
-				componentName: 'InjectFailComp',
-				componentInjectAt: '#inject-fail-host',
-				component: { name: 'InjectFailComp', render: () => null },
+				artifactName: 'InjectFailComp',
+				injectAt: '#inject-fail-host',
+				artifact: createVueComponent('InjectFailComp'),
 				alive: false,
 				scope: 'local'
 			})
@@ -396,7 +403,7 @@ describe('TaskRunner', () => {
 			injectAt: '#inject-fail-host',
 			status: 'pending',
 			meta: {
-				componentName: 'InjectFailComp',
+				artifactName: 'InjectFailComp',
 				alive: false,
 				scope: 'local',
 				withEvent: false
@@ -410,7 +417,7 @@ describe('TaskRunner', () => {
 			injectAt: '#inject-fail-host',
 			status: 'idle',
 			meta: {
-				componentName: 'InjectFailComp'
+				artifactName: 'InjectFailComp'
 			}
 		});
 		expect(injectEvents[1].error).toBeDefined();
@@ -441,12 +448,12 @@ describe('TaskRunner', () => {
 
 		taskContext.set(
 			'active-event-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'active-event-task',
 				taskStatus: 'idle',
-				componentName: 'ActiveEventComp',
-				componentInjectAt: '#active-event-host',
-				component: { name: 'ActiveEventComp', render: () => null }
+				artifactName: 'ActiveEventComp',
+				injectAt: '#active-event-host',
+				artifact: createVueComponent('ActiveEventComp')
 			})
 		);
 
@@ -470,15 +477,17 @@ describe('TaskRunner', () => {
 		const pluginA = { install: vi.fn() };
 		const pluginB = { install: vi.fn() };
 
-		taskContext.usePlugins(pluginA, pluginB);
+		VuePlugin.usePlugins(pluginA, pluginB);
+		const plugins = VuePlugin.getPlugins();
 		taskContext.set(
 			'plugin-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'plugin-task',
 				taskStatus: 'idle',
-				componentName: 'PluginComp',
-				componentInjectAt: '#plugin-host',
-				component: { name: 'PluginComp', render: () => null }
+				artifactName: 'PluginComp',
+				injectAt: '#plugin-host',
+				artifact: createVueComponent('PluginComp'),
+				adapter: vueAdapter
 			})
 		);
 
@@ -495,7 +504,7 @@ describe('TaskRunner', () => {
 
 		const bindSpy = vi.spyOn(taskRunner, 'bindListenerSignal').mockReturnValue(true);
 		const controlSpy = vi.spyOn(taskRunner, 'controlListener').mockReturnValue(true);
-		const signal = ref(true);
+		const signal = createActivityStore(true);
 
 		taskContext.set(
 			'route-task',
@@ -525,12 +534,12 @@ describe('TaskRunner', () => {
 
 		taskContext.set(
 			'open-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'open-task',
 				taskStatus: 'idle',
-				componentName: 'OpenComp',
-				componentInjectAt: '#route-open',
-				component: { name: 'OpenComp', render: () => null },
+				artifactName: 'OpenComp',
+				injectAt: '#route-open',
+				artifact: createVueComponent('OpenComp'),
 				withEvent: true,
 				listener: {
 					listenAt: '#btn',
@@ -545,9 +554,9 @@ describe('TaskRunner', () => {
 		expect(controlSpy).toHaveBeenCalledWith('open-task', Action.OPEN);
 	});
 
-	it('should stop previous watcher and respond immediately on bindListenerSignal', async () => {
+	it('should stop previous watcher and respond immediately on bindListenerSignal', () => {
 		const oldWatcher = vi.fn() as unknown as WatchHandle;
-		const source = ref(false);
+		const source = createActivityStore(false);
 		const controlSpy = vi.spyOn(taskRunner, 'controlListener').mockReturnValue(true);
 
 		taskContext.set(
@@ -569,8 +578,7 @@ describe('TaskRunner', () => {
 		expect(oldWatcher).toHaveBeenCalledOnce();
 		expect(controlSpy).toHaveBeenCalledWith('signal-task', Action.CLOSE);
 
-		source.value = true;
-		await nextTick();
+		source.set(true);
 		expect(controlSpy).toHaveBeenCalledWith('signal-task', Action.OPEN);
 	});
 
@@ -740,7 +748,7 @@ describe('TaskRunner', () => {
 	});
 
 	it('should warn and return false when attachEvent fails', () => {
-		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 		const attachEventSpy = vi
 			.spyOn(
 				taskRunner as unknown as { attachEvent: (taskId: string) => void },
@@ -768,7 +776,7 @@ describe('TaskRunner', () => {
 	});
 
 	it('should warn on invalid action in controlListener', () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 		taskContext.set(
 			'invalid-action',
 			createListenerTask({
@@ -794,12 +802,12 @@ describe('TaskRunner', () => {
 		const onDomAliveSpy = vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(stopHandler);
 		taskContext.set(
 			'alive-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'alive-task',
 				taskStatus: 'idle',
-				componentName: 'AliveComp',
-				componentInjectAt: '#alive-host',
-				component: { name: 'AliveComp', render: () => null },
+				artifactName: 'AliveComp',
+				injectAt: '#alive-host',
+				artifact: createVueComponent('AliveComp'),
 				alive: true,
 				isObserver: false,
 				scope: 'local'
@@ -810,22 +818,22 @@ describe('TaskRunner', () => {
 
 		expect(onDomAliveSpy).toHaveBeenCalledOnce();
 		expect(stopHandler).not.toHaveBeenCalled();
-		expect(taskContext.get<ComponentTask>('alive-task')?.disableAlive).toBe(stopHandler);
-		expect(taskContext.get<ComponentTask>('alive-task')?.isObserver).toBe(true);
+		expect(taskContext.get<ArtifactTask>('alive-task')?.disableAlive).toBe(stopHandler);
+		expect(taskContext.get<ArtifactTask>('alive-task')?.isObserver).toBe(true);
 	});
 
 	it('should keep task idle when target is detached on onTargetReady', () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 		const detached = document.createElement('div');
 
 		taskContext.set(
 			'detached-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'detached-task',
 				taskStatus: 'pending',
-				componentName: 'DetachedComp',
-				componentInjectAt: '#detached',
-				component: { name: 'DetachedComp', render: () => null }
+				artifactName: 'DetachedComp',
+				injectAt: '#detached',
+				artifact: createVueComponent('DetachedComp')
 			})
 		);
 
@@ -836,7 +844,7 @@ describe('TaskRunner', () => {
 	});
 
 	it('should warn and return when task is missing on onTargetReady', () => {
-		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 		taskRunner.onTargetReady(document.createElement('div'), 'missing-task');
 		expect(errorSpy).toHaveBeenCalledWith(
 			expect.stringContaining('Task "missing-task" not found')
@@ -848,12 +856,12 @@ describe('TaskRunner', () => {
 		document.body.appendChild(host);
 		taskContext.set(
 			'active-short-circuit',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'active-short-circuit',
 				taskStatus: 'active',
-				componentName: 'AlreadyActiveComp',
-				componentInjectAt: '#x',
-				component: { name: 'AlreadyActiveComp', render: () => null }
+				artifactName: 'AlreadyActiveComp',
+				injectAt: '#x',
+				artifact: createVueComponent('AlreadyActiveComp')
 			})
 		);
 
@@ -885,8 +893,8 @@ describe('TaskRunner', () => {
 	});
 
 	it('should return false when bindListenerSignal task is missing', () => {
-		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-		const result = taskRunner.bindListenerSignal('missing-signal-task', ref(true));
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+		const result = taskRunner.bindListenerSignal('missing-signal-task', createActivityStore(true));
 		expect(result).toBe(false);
 		expect(errorSpy).toHaveBeenCalledWith(
 			expect.stringContaining('unable to bind activity signal')
@@ -908,9 +916,9 @@ describe('TaskRunner', () => {
 		vi.spyOn(taskRunner, 'controlListener').mockImplementation(() => {
 			throw new Error('watch failed');
 		});
-		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
-		const result = taskRunner.bindListenerSignal('watch-error-task', ref(true));
+		const result = taskRunner.bindListenerSignal('watch-error-task', createActivityStore(true));
 
 		expect(result).toBe(false);
 		expect(errorSpy).toHaveBeenCalledWith(
@@ -920,7 +928,7 @@ describe('TaskRunner', () => {
 	});
 
 	it('should return false when task is missing in controlListener', () => {
-		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 		const result = taskRunner.controlListener('missing-listener-task', Action.OPEN);
 		expect(result).toBe(false);
 		expect(errorSpy).toHaveBeenCalledWith(
@@ -929,7 +937,7 @@ describe('TaskRunner', () => {
 	});
 
 	it('should return false when event binding config is incomplete in controlListener', () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 		taskContext.set(
 			'incomplete-listener-task',
 			createListenerTask({
@@ -987,7 +995,7 @@ describe('TaskRunner', () => {
 		const readySpy = vi.spyOn(DOMWatcher, 'onDomReady').mockImplementation((_, cb) => {
 			const el = document.createElement('button');
 			cb(el);
-			return () => {};
+			return () => { };
 		});
 		taskContext.set(
 			'fallback-open-task',
@@ -1011,39 +1019,39 @@ describe('TaskRunner', () => {
 	it('should set task idle when component taskId field is empty in onTargetReady', () => {
 		const host = document.createElement('div');
 		document.body.appendChild(host);
-		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
 		taskContext.set(
 			'broken-task-key',
-			createComponentTask({
+			createArtifactTask({
 				taskId: '',
 				taskStatus: 'pending',
-				componentName: 'BrokenComp',
-				componentInjectAt: '#host',
-				component: { name: 'BrokenComp', render: () => null }
+				artifactName: 'BrokenComp',
+				injectAt: '#host',
+				artifact: createVueComponent('BrokenComp')
 			})
 		);
 
 		taskRunner.onTargetReady(host, 'broken-task-key');
 		expect(taskContext.get('broken-task-key')?.taskStatus).toBe('idle');
 		expect(errorSpy).toHaveBeenCalledWith(
-			expect.stringContaining('No component found for task')
+			expect.stringContaining('No artifact found for task')
 		);
 	});
 
 	it('should set task idle when component mount throws in onTargetReady', () => {
 		const host = document.createElement('div');
 		document.body.appendChild(host);
-		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
 		taskContext.set(
 			'mount-error-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'mount-error-task',
 				taskStatus: 'pending',
-				componentName: 'MountErrorComp',
-				componentInjectAt: '#host',
-				component: {
+				artifactName: 'MountErrorComp',
+				injectAt: '#host',
+				artifact: {
 					name: 'MountErrorComp',
 					render: () => {
 						throw new Error('mount failed');
@@ -1055,7 +1063,7 @@ describe('TaskRunner', () => {
 		taskRunner.onTargetReady(host, 'mount-error-task');
 		expect(taskContext.get('mount-error-task')?.taskStatus).toBe('idle');
 		expect(errorSpy).toHaveBeenCalledWith(
-			expect.stringContaining('Component mount failed for task'),
+			expect.stringContaining('Artifact mount failed for task'),
 			expect.any(Error)
 		);
 	});
@@ -1065,15 +1073,15 @@ describe('TaskRunner', () => {
 		host.id = 'global-alive-host';
 		document.body.appendChild(host);
 
-		const aliveSpy = vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(() => {});
+		const aliveSpy = vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(() => { });
 		taskContext.set(
 			'global-alive-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'global-alive-task',
 				taskStatus: 'idle',
-				componentName: 'GlobalAliveComp',
-				componentInjectAt: '#global-alive-host',
-				component: { name: 'GlobalAliveComp', render: () => null },
+				artifactName: 'GlobalAliveComp',
+				injectAt: '#global-alive-host',
+				artifact: createVueComponent('GlobalAliveComp'),
 				alive: true,
 				isObserver: false,
 				scope: 'global'
@@ -1093,12 +1101,12 @@ describe('TaskRunner', () => {
 
 		taskContext.set(
 			'stale-alive-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'stale-alive-task',
 				taskStatus: 'idle',
-				componentName: 'StaleAliveComp',
-				componentInjectAt: '#stale-alive-host',
-				component: { name: 'StaleAliveComp', render: () => null },
+				artifactName: 'StaleAliveComp',
+				injectAt: '#stale-alive-host',
+				artifact: createVueComponent('StaleAliveComp'),
 				alive: true,
 				isObserver: false,
 				scope: 'local'
@@ -1107,7 +1115,7 @@ describe('TaskRunner', () => {
 
 		const stopHandler = vi.fn();
 		vi.spyOn(DOMWatcher, 'onDomAlive').mockImplementation(() => {
-			const ctx = taskContext.get<ComponentTask>('stale-alive-task');
+			const ctx = taskContext.get<ArtifactTask>('stale-alive-task');
 			if (ctx) {
 				ctx.alive = false;
 			}
@@ -1117,7 +1125,7 @@ describe('TaskRunner', () => {
 		taskRunner.onTargetReady(host, 'stale-alive-task');
 
 		expect(stopHandler).toHaveBeenCalledOnce();
-		expect(taskContext.get<ComponentTask>('stale-alive-task')?.isObserver).toBe(false);
+		expect(taskContext.get<ArtifactTask>('stale-alive-task')?.isObserver).toBe(false);
 	});
 
 	it('should assign alive observer handler immediately when setup succeeds', () => {
@@ -1129,12 +1137,12 @@ describe('TaskRunner', () => {
 		const onDomAliveSpy = vi.spyOn(DOMWatcher, 'onDomAlive').mockReturnValue(stopHandler);
 		taskContext.set(
 			'cancel-alive-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'cancel-alive-task',
 				taskStatus: 'idle',
-				componentName: 'CancelAliveComp',
-				componentInjectAt: '#cancel-alive-host',
-				component: { name: 'CancelAliveComp', render: () => null },
+				artifactName: 'CancelAliveComp',
+				injectAt: '#cancel-alive-host',
+				artifact: createVueComponent('CancelAliveComp'),
 				alive: true,
 				isObserver: false,
 				scope: 'local'
@@ -1142,7 +1150,7 @@ describe('TaskRunner', () => {
 		);
 
 		taskRunner.onTargetReady(host, 'cancel-alive-task');
-		const context = taskContext.get<ComponentTask>('cancel-alive-task');
+		const context = taskContext.get<ArtifactTask>('cancel-alive-task');
 
 		expect(onDomAliveSpy).toHaveBeenCalledOnce();
 		expect(context?.disableAlive).toBe(stopHandler);
@@ -1156,12 +1164,12 @@ describe('TaskRunner', () => {
 
 		taskContext.set(
 			'alive-callback-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'alive-callback-task',
 				taskStatus: 'idle',
-				componentName: 'AliveCallbackComp',
-				componentInjectAt: '#alive-callback-host',
-				component: { name: 'AliveCallbackComp', render: () => null },
+				artifactName: 'AliveCallbackComp',
+				injectAt: '#alive-callback-host',
+				artifact: createVueComponent('AliveCallbackComp'),
 				alive: true,
 				isObserver: false,
 				scope: 'local'
@@ -1172,12 +1180,12 @@ describe('TaskRunner', () => {
 		vi.spyOn(DOMWatcher, 'onDomAlive').mockImplementation(
 			(_matchedElement, _injectAt, onRemove, onRestore) => {
 				onRemove();
-				const ctx = taskContext.get<ComponentTask>('alive-callback-task');
+				const ctx = taskContext.get<ArtifactTask>('alive-callback-task');
 				if (ctx) {
 					ctx.alive = false;
 				}
 				onRestore(document.createElement('div'));
-				return () => {};
+				return () => { };
 			}
 		);
 
@@ -1190,7 +1198,7 @@ describe('TaskRunner', () => {
 		const onDomReadySpy = vi.spyOn(DOMWatcher, 'onDomReady');
 		taskContext.set(
 			'timeout-task',
-			createComponentTask({
+			createArtifactTask({
 				taskId: 'timeout-task',
 				taskStatus: 'idle',
 				timeout: 5000

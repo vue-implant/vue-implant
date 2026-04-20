@@ -129,7 +129,7 @@ Starts the injection process and handles registered tasks.
 
 ### `Injector.register(injectAt: string, component: Component, option?: ComponentOptions): RegisterResult`
 
-Registers a component injection task.
+Registers a component injection task. Internally, `vue-implant` resolves the matching mount adapter for the registered component.
 
 Parameter description:
 
@@ -147,14 +147,14 @@ Parameter description:
 | `on.listenAt` | yes | `string` | Selector of the event target element. |
 | `on.type` | yes | `string` | Event type. |
 | `on.callback` | yes | `EventListener` | Event callback. |
-| `on.activitySignal` | no | `() => Ref<boolean>` | External signal controlling listener activation. |
+| `on.activitySignal` | no | `() => ActivitySignalSource<boolean>` | External signal controlling listener activation. Passing Vue `ref`-like sources still works in `1.x`, but is deprecated. |
 | `hooks` | no | `LifecycleHookMap` | Component-level lifecycle hooks for the current task (only supported in `register`). |
 
 Return value:
 
 | Property | Type | Description | Default |
 | --- | --- | --- | --- |
-| `taskId` | `string` | Unique task identifier. | `[ComponentName]@[CSSSelector]` |
+| `taskId` | `string` | Unique task identifier. | `[ArtifactName]@[CSSSelector]` or `artifact-[CSSSelector]` |
 | `isSuccess` | `boolean` | Whether registration succeeds. | success `true`, failure `false` |
 | `enableAlive` | `() => void` | Manually enables re-injection; empty function when registration fails. | callback function |
 | `disableAlive` | `() => void` | Manually disables re-injection; empty function when registration fails. | callback function |
@@ -165,7 +165,7 @@ Return value:
 > [!NOTE]
 > You can call `register()` after `run()`. The new task will be activated on the next `run()` call.
 
-### `Injector.registerListener(listenAt: string, event: string, callback: EventListener, activitySignal?: () => Ref<boolean>): ListenerRegisterResult`
+### `Injector.registerListener(listenAt: string, event: string, callback: EventListener, activitySignal?: () => ActivitySignalSource<boolean>): ListenerRegisterResult`
 
 Registers a pure listener task (without component injection).
 
@@ -174,7 +174,7 @@ Parameter description:
 - `listenAt`: selector of the listener target element.
 - `event`: listener event type.
 - `callback`: event callback.
-- `activitySignal`: optional, returns `Ref<boolean>` to dynamically control listener activation.
+- `activitySignal`: optional, returns `ActivitySignalSource<boolean>` to dynamically control listener activation.
 
 Return value:
 
@@ -191,7 +191,7 @@ Return value:
 
 ### `Injector.use(plugin: Plugin): this`
 
-Registers a shared Vue plugin for every injected app created by the current `Injector`.
+Registers a shared Vue plugin in the singleton plugin registry used by injector-created Vue apps in the current runtime.
 
 **Minimal example:**
 
@@ -227,7 +227,7 @@ injector.usePlugins(pinia, analyticsPlugin);
 
 ### `Injector.getPlugins(): Plugin[]`
 
-Returns the shared plugins currently registered on the injector.
+Returns the shared plugins currently registered in the singleton Vue plugin registry.
 
 ### `Injector.setPinia(pinia: Plugin): void`
 
@@ -239,6 +239,15 @@ Legacy compatibility alias for Pinia-based setups. It still works and internally
 ### `Injector.getPinia(): Plugin | undefined`
 
 Returns the Pinia instance previously set through `setPinia()`.
+
+### `VuePlugin`
+
+Singleton shared plugin registry exposed for advanced orchestration. It powers `Injector.use()`, `Injector.usePlugins()`, `Injector.setPinia()`, and related getters.
+
+Available methods: `use`, `usePlugins`, `getPlugins`, `setPinia`, `getPinia`, `clear`.
+
+> [!NOTE]
+> `VuePlugin` is global within the current runtime. Plugins registered through one `Injector` are visible to other `Injector` instances on the same page.
 
 ### `Injector.getObserver(): ObserverHub`
 
@@ -267,6 +276,10 @@ Removes task-scoped hooks by task, by task+event, or by task+event+hook.
 ### `Injector.offAny(hook: ObserveHook): void`
 
 Removes a previously registered `onAny` hook.
+
+### `Injector.getLogger(): ILogger`
+
+Returns the logger instance currently used by the injector and its default observer pipeline.
 
 ### Logging
 
@@ -347,17 +360,17 @@ Lifecycle event payloads:
 
 | Event | Payload fields |
 | --- | --- |
-| `register:start` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName?`, `meta.listenerEvent?`, `meta.listenAt?`, `meta.alive?`, `meta.scope?`, `meta.timeout?`, `meta.withEvent?` |
-| `register:success` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName?`, `meta.listenerEvent?`, `meta.listenAt?`, `meta.alive?`, `meta.scope?`, `meta.timeout?`, `meta.withEvent?` |
-| `register:duplicate` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName?`, `meta.listenerEvent?` |
-| `register:error` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.componentName?`, `meta.listenerEvent?` |
+| `register:start` | `taskId`, `kind`, `injectAt`, `status`, `meta.artifactName?`, `meta.listenerEvent?`, `meta.listenAt?`, `meta.alive?`, `meta.scope?`, `meta.timeout?`, `meta.withEvent?` |
+| `register:success` | `taskId`, `kind`, `injectAt`, `status`, `meta.artifactName?`, `meta.listenerEvent?`, `meta.listenAt?`, `meta.alive?`, `meta.scope?`, `meta.timeout?`, `meta.withEvent?` |
+| `register:duplicate` | `taskId`, `kind`, `injectAt`, `status`, `meta.artifactName?`, `meta.listenerEvent?` |
+| `register:error` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.artifactName?`, `meta.listenerEvent?` |
 | `run:start` | `meta.totalTasks`, `meta.idleTasks`, `meta.pendingTasks`, `meta.activeTasks` |
 | `run:taskScheduled` | `taskId`, `kind`, `injectAt`, `status`, `preStatus`, `meta.timeout` |
 | `run:taskSkipped` | `taskId`, `kind`, `injectAt`, `status`, `meta.skipReason` |
 | `target:ready` | `taskId`, `kind`, `injectAt`, `status` |
-| `inject:start` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName`, `meta.alive`, `meta.scope`, `meta.withEvent` |
-| `inject:success` | `taskId`, `kind`, `injectAt`, `status`, `meta.componentName`, `meta.alive`, `meta.scope` |
-| `inject:fail` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.componentName` |
+| `inject:start` | `taskId`, `kind`, `injectAt`, `status`, `meta.artifactName`, `meta.alive`, `meta.scope`, `meta.withEvent` |
+| `inject:success` | `taskId`, `kind`, `injectAt`, `status`, `meta.artifactName`, `meta.alive`, `meta.scope` |
+| `inject:fail` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.artifactName` |
 | `listener:open` | `taskId`, `kind`, `injectAt`, `status`, `meta.listenerEvent`, `meta.listenAt` |
 | `listener:close` | `taskId`, `kind`, `injectAt`, `status`, `meta.listenerEvent`, `meta.listenAt` |
 | `listener:attachFail` | `taskId`, `kind`, `injectAt`, `status`, `error`, `meta.listenerEvent`, `meta.listenAt` |
@@ -375,7 +388,7 @@ Lifecycle event payloads:
 | `task:afterDestroy` | `taskId`, `kind`, `injectAt`, `preStatus` |
 | `resource:watcherReleased` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource` |
 | `resource:listenerReleased` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource`, `meta.listenerEvent?`, `meta.listenAt?` |
-| `resource:componentUnmounted` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource`, `meta.componentName` |
+| `resource:componentUnmounted` | `taskId`, `kind`, `injectAt`, `status`, `meta.resource`, `meta.artifactName` |
 | `dom:readyFound` | `injectAt`, `taskId`, `kind`, `durationMs`, `meta.root` |
 | `dom:readyTimeout` | `injectAt`, `taskId`, `kind`, `durationMs`, `meta.root` |
 | `dom:removed` | `injectAt`, `taskId`, `kind`, `meta.phase` |
@@ -513,24 +526,52 @@ Behavior summary:
 - Calls context-level full reset once to clean runtime fields of every task.
 - Keeps task registrations and task IDs in context.
 
-### `Injector.bindListenerSignal(taskId: string, source: WatchSource<boolean>): boolean`
+### `createActivityStore<T>(initialValue: T)`
+
+Creates a lightweight activity store compatible with listener activity APIs.
+
+Returned store contract:
+
+| Member | Type | Description |
+| --- | --- | --- |
+| `get` | `() => T` | Reads the current value. |
+| `subscribe` | `(listener: (value: T) => void) => SignalUnsubscribe` | Subscribes to changes. |
+| `set` | `(value: T) => void` | Replaces the current value. |
+| `update` | `(updater: (value: T) => T) => void` | Computes the next value from the current value. |
+
+**Minimal example:**
+
+```ts
+import { createActivityStore, Injector } from 'vue-implant';
+
+const injector = new Injector();
+const activity = createActivityStore(true);
+
+injector.registerListener('#btn', 'click', () => console.log('clicked'), () => activity);
+
+activity.set(false);
+```
+
+> [!NOTE]
+> Passing Vue `ref`-like sources is still supported in `1.x`, but deprecated and planned for removal in `2.0`. New code should prefer `createActivityStore()`.
+
+### `Injector.bindListenerSignal(taskId: string, source: ActivitySignalSource<boolean>): boolean`
 
 Binds an external reactive signal to listener activation: listener opens when `true`, closes when `false`.
 
 Parameter description:
 
 - `taskId`: task ID (must be a task configured with `on`).
-- `source`: `WatchSource<boolean>`, usually a `ref<boolean>`.
+- `source`: `ActivitySignalSource<boolean>`, usually a store created by `createActivityStore()`.
 
 **Minimal example:**
 
 ```ts
-import { ref } from 'vue';
-import { Injector } from 'vue-implant';
+import { createActivityStore, Injector } from 'vue-implant';
 import TestAppComponent from './TestAppComponent.vue';
 
 const injector = new Injector();
-const enabled = ref(true);
+const enabled = createActivityStore(true);
 
 const { taskId } = injector.register('#app', TestAppComponent, {
 	on: {
@@ -572,7 +613,13 @@ injector.controlListener(taskId, Action.OPEN);
 injector.controlListener(taskId, Action.CLOSE);
 ```
 
+### Additional exported types
 
+The package also exposes advanced TypeScript types for integration and tooling:
+
+- Adapter-related: `MountAdapter`, `ResolvableMountAdapter`, `AdapterMountInput`, `AdapterMountResult`, `AdapterUnmountInput`, `AdapterUnmountReason`, `AdapterResolver`
+- Vue mount-related: `VueMountArtifact`, `VueMountHandle`, `VueMountInstance`
+- Signal-related: `ActivitySignalSource`, `ActivitySignalSubscribable`, `SignalUnsubscribe`
 
 ## Limitations ⚠️
 
@@ -601,6 +648,14 @@ No. Calling these APIs on pure listener tasks returns immediately with warnings.
 ### 5) Should I use `use()` or `setPinia()` for Pinia?
 
 Prefer `use(createPinia())` for new code. `setPinia()` is still supported in `1.x` as a compatibility alias, so existing integrations do not need an immediate migration.
+
+### 6) Can I pass Vue `ref<boolean>` to `activitySignal` or `bindListenerSignal`?
+
+Yes in `1.x`, but this compatibility path is deprecated and planned for removal in `2.0`. Prefer `createActivityStore(true)` for new code.
+
+### 7) Are plugins registered by `use()` scoped per injector?
+
+No. They are stored in the singleton `VuePlugin` registry and are therefore shared by injector instances in the same runtime.
 
 ## Roadmap 🛣️
 

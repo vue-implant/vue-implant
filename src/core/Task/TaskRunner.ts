@@ -1,18 +1,18 @@
-import type { App, ComponentPublicInstance, Plugin, WatchHandle, WatchSource } from 'vue';
-import { createApp, watch } from 'vue';
 import { UUID } from '../../util/uuid';
 import type { ObserveEmitter } from '../hooks/type';
 import { Action, type ActionEvent, type InjectionConfig } from '../Injector/types';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
-import { createDomObserveEmitFactory } from '../payload/createDomObserveEmitFactory';
 import { buildInjectObservePayload } from '../payload/buildInjectObservePayload';
 import { buildListenerObservePayload } from '../payload/buildListenerObservePayload';
 import { buildRunObservePayload } from '../payload/buildRunObservePayload';
+import { createDomObserveEmitFactory } from '../payload/createDomObserveEmitFactory';
+import { observeActivitySignal, stopActivitySignal } from '../signal/observeActivitySignal';
+import type { ActivitySignalSource } from '../signal/types';
 import { DOMWatcher } from '../watcher/DomWatcher';
 import type { TaskContext } from './TaskContext';
 import type { _InjectResult, Task, TaskListenerFeature } from './types';
-import { getTaskInjectAt, getTaskListener, isComponentTask } from './util';
+import { getTaskInjectAt, getTaskListener, isArtifactTask } from './util';
 
 export class TaskRunner {
 	private readonly taskContext: TaskContext;
@@ -134,21 +134,21 @@ export class TaskRunner {
 		const injectAt: string = getTaskInjectAt(context);
 
 		// Mount component
-		if (isComponentTask(context)) {
+		if (isArtifactTask(context)) {
 			this.emit(
 				'inject:start',
 				buildInjectObservePayload('inject:start', {
 					taskId,
 					kind: 'component',
-					injectAt: context.componentInjectAt,
+					injectAt: context.injectAt,
 					status: context.taskStatus,
-					componentName: context.componentName,
+					artifactName: context.artifactName,
 					alive: context.alive,
 					scope: context.scope,
 					withEvent: context.withEvent
 				})
 			);
-			const result: _InjectResult = this.injectComponent(targetElement, taskId);
+			const result: _InjectResult = this.injectArtifact(targetElement, taskId);
 			if (!result.isSuccess) {
 				// inject fails, not need call setTaskStatus because this one will emit the other event
 				this.taskContext.setTaskStatus(taskId, 'idle');
@@ -157,12 +157,12 @@ export class TaskRunner {
 					buildInjectObservePayload('inject:fail', {
 						taskId,
 						kind: 'component',
-						injectAt: context.componentInjectAt,
+						injectAt: context.injectAt,
 						status: 'idle',
 						error:
 							result.error ??
 							new Error(`Component inject failed for task "${taskId}"`),
-						componentName: context.componentName
+						artifactName: context.artifactName
 					})
 				);
 				return;
@@ -172,9 +172,9 @@ export class TaskRunner {
 				buildInjectObservePayload('inject:success', {
 					taskId,
 					kind: 'component',
-					injectAt: context.componentInjectAt,
+					injectAt: context.injectAt,
 					status: context.taskStatus,
-					componentName: context.componentName,
+					artifactName: context.artifactName,
 					alive: context.alive,
 					scope: context.scope
 				})
@@ -214,7 +214,7 @@ export class TaskRunner {
 		this.taskContext.setTaskStatus(taskId, 'active');
 	}
 
-	public bindListenerSignal(taskId: string, source: WatchSource<boolean>): boolean {
+	public bindListenerSignal(taskId: string, source: ActivitySignalSource<boolean>): boolean {
 		// Bind a reactive signal to control automatic listener attach/detach for this task
 		const context: Task | undefined = this.taskContext.get(taskId);
 		if (!context) {
@@ -225,17 +225,16 @@ export class TaskRunner {
 		// Stop the previous watcher before creating a new one
 		// to avoid both firing simultaneously during the immediate callback
 		if (context.watcher) {
-			context.watcher.watcher();
+			stopActivitySignal(context.watcher.watcher);
 			context.watcher = undefined;
 		}
 
 		try {
-			const unWatch: WatchHandle = watch(
+			const unWatch = observeActivitySignal(
 				source,
 				(newSignal) => {
 					this.controlListener(taskId, newSignal ? Action.OPEN : Action.CLOSE);
-				},
-				{ immediate: true }
+				}
 			);
 
 			context.watcher = {
@@ -383,9 +382,9 @@ export class TaskRunner {
 
 		return proxyController;
 	}
-	private injectComponent(matchedElement: HTMLElement, taskId: string): _InjectResult {
+	private injectArtifact(matchedElement: HTMLElement, taskId: string): _InjectResult {
 		const context: Task | undefined = this.taskContext.get(taskId);
-		if (!context || !isComponentTask(context)) {
+		if (!context || !isArtifactTask(context)) {
 			const error = new Error(`Task "${taskId}" context missing, injection aborted`);
 			this.logger.error(error.message);
 			return {
@@ -395,7 +394,7 @@ export class TaskRunner {
 		}
 
 		if (!context.taskId) {
-			const error = new Error(`No component found for task "${taskId}", injection aborted`);
+			const error = new Error(`No artifact found for task "${taskId}", injection aborted`);
 			this.logger.error(error.message);
 			return {
 				isSuccess: false,
@@ -403,7 +402,7 @@ export class TaskRunner {
 			};
 		}
 
-		if (context?.app) {
+		if (context.mountHandle) {
 			const error = new Error(`Task "${taskId}" is already mounted, skipping`);
 			this.logger.warn(error.message);
 			return {
@@ -412,12 +411,11 @@ export class TaskRunner {
 			};
 		}
 
-		const injectAt: string = context.componentInjectAt;
-		const plugins: Plugin[] = this.taskContext.getPlugins();
+		const injectAt: string = context.injectAt;
 		const currentDocument = matchedElement.ownerDocument || document;
 
 		const appRoot = currentDocument.createElement('div');
-		appRoot.id = `vue-injector-${UUID()}`;
+		appRoot.id = `implant-root-${UUID()}`;
 		appRoot.style.display = 'contents';
 		appRoot.style.zIndex = '999999';
 
@@ -437,18 +435,21 @@ export class TaskRunner {
 
 		try {
 			// Create a Vue app instance and mount it to the newly created DOM node
-			const subApp: App<Element> = createApp(context.component);
-			for (const plugin of plugins) {
-				subApp.use(plugin);
-			}
-			const vm: ComponentPublicInstance = subApp.mount(appRoot);
+			const mountResult = context.adapter.mount({
+				host: matchedElement,
+				mountPoint: appRoot,
+				artifact: context.artifact,
+				taskId,
+				injectAt
+			});
 
 			// Save to context
-			context.app = subApp;
-			context.instance = vm;
+			context.mountHandle = mountResult.handle;
+			context.hostElement = matchedElement;
+			context.instance = mountResult.instance;
 			context.appRoot = appRoot;
 
-			this.logger.info(`Component "${context.componentName}" injected at "${injectAt}"`);
+			this.logger.info(`Artifact "${context.artifactName}" injected at "${injectAt}"`);
 
 			if (context.alive && !context.isObserver) {
 				// Injection re-injection mechanism
@@ -478,7 +479,7 @@ export class TaskRunner {
 					}
 				);
 
-				if (!context.alive || context.app !== subApp) {
+				if (!context.alive || context.mountHandle !== mountResult.handle) {
 					stopHandler();
 				} else {
 					context.disableAlive = stopHandler;
@@ -491,7 +492,7 @@ export class TaskRunner {
 				isSuccess: true
 			};
 		} catch (error) {
-			this.logger.error(`Component mount failed for task "${taskId}":`, error);
+			this.logger.error(`Artifact mount failed for task "${taskId}":`, error);
 			appRoot.remove();
 			return {
 				isSuccess: false,

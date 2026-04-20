@@ -9,7 +9,7 @@ type InjectObserveBase = {
 	kind: 'component';
 	injectAt: string;
 	status: TaskStatus;
-	componentName: string;
+	artifactName: string;
 };
 
 type InjectObserveInputByName = {
@@ -32,7 +32,7 @@ type InjectObservePayloadByName = {
 	'inject:start': Omit<ObserveEvent, 'name' | 'ts'> & {
 		kind: 'component';
 		meta: {
-			componentName: string;
+			artifactName: string;
 			alive: boolean;
 			scope: 'local' | 'global';
 			withEvent: boolean;
@@ -41,7 +41,7 @@ type InjectObservePayloadByName = {
 	'inject:success': Omit<ObserveEvent, 'name' | 'ts'> & {
 		kind: 'component';
 		meta: {
-			componentName: string;
+			artifactName: string;
 			alive: boolean;
 			scope: 'local' | 'global';
 		};
@@ -51,7 +51,7 @@ type InjectObservePayloadByName = {
 		status: 'idle';
 		error: unknown;
 		meta: {
-			componentName: string;
+			artifactName: string;
 		};
 	};
 };
@@ -63,7 +63,7 @@ const injectObservePayloadBuilders = {
 		injectAt: input.injectAt,
 		status: input.status,
 		meta: {
-			componentName: input.componentName,
+			artifactName: input.artifactName,
 			alive: input.alive,
 			scope: input.scope,
 			withEvent: input.withEvent
@@ -75,7 +75,7 @@ const injectObservePayloadBuilders = {
 		injectAt: input.injectAt,
 		status: input.status,
 		meta: {
-			componentName: input.componentName,
+			artifactName: input.artifactName,
 			alive: input.alive,
 			scope: input.scope
 		}
@@ -87,7 +87,7 @@ const injectObservePayloadBuilders = {
 		status: 'idle',
 		error: input.error,
 		meta: {
-			componentName: input.componentName
+			artifactName: input.artifactName
 		}
 	})
 } satisfies ObservePayloadBuilderMap<

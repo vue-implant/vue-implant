@@ -1,12 +1,12 @@
-import type { Plugin } from 'vue';
 import type { ObserveEmitter } from '../hooks/type';
 import { noopObserveEmitter } from '../hooks/util';
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
 import { buildResourceObservePayload } from '../payload/buildResourceObservePayload';
 import { buildTaskObservePayload } from '../payload/buildTaskObservePayload';
+import { stopActivitySignal } from '../signal/observeActivitySignal';
 import type {
-	ComponentTask,
+	ArtifactTask,
 	ListenerTask,
 	Task,
 	TaskErrorMessage,
@@ -15,7 +15,7 @@ import type {
 	TaskRecord,
 	TaskStatus
 } from './types';
-import { getTaskInjectAt, getTaskListener, isComponentTask } from './util';
+import { getTaskInjectAt, getTaskListener, isArtifactTask } from './util';
 
 /**
  * Central runtime registry for all injection tasks.
@@ -29,11 +29,6 @@ export class TaskContext {
 	private readonly logger: ILogger;
 
 	private readonly emit: ObserveEmitter;
-
-	constructor(emit: ObserveEmitter = noopObserveEmitter, logger: ILogger = new Logger()) {
-		this.logger = logger;
-		this.emit = emit;
-	}
 
 	/**
 	 * Stores failed task injection messages.
@@ -51,16 +46,10 @@ export class TaskContext {
 	 */
 	private readonly contextMap: Map<string, Task> = new Map();
 
-	/**
-	 * Shared Vue plugins used by injected apps.
-	 */
-	private plugins: Plugin[] = [];
-
-	/**
-	 * Legacy Pinia alias kept for backward compatibility with `setPinia/getPinia`.
-	 */
-	private pinia: Plugin | undefined = undefined;
-
+	constructor(emit: ObserveEmitter = noopObserveEmitter, logger: ILogger = new Logger()) {
+		this.logger = logger;
+		this.emit = emit;
+	}
 	/**
 	 * Registers or replaces a task context by id.
 	 *
@@ -78,7 +67,7 @@ export class TaskContext {
 	 * @returns The task context if found, otherwise `undefined`.
 	 */
 	public get(key: string, kind: 'listener'): ListenerTask | undefined;
-	public get(key: string, kind: 'component'): ComponentTask | undefined;
+	public get(key: string, kind: 'component'): ArtifactTask | undefined;
 	public get<T extends Task>(key: string): T | undefined;
 	public get(key: string): Task | undefined;
 	public get(key: string, kind?: TaskKind): Task | undefined {
@@ -109,72 +98,6 @@ export class TaskContext {
 	 */
 	public keys(): IterableIterator<string> {
 		return this.contextMap.keys();
-	}
-
-	/**
-	 * Gets the stored shared plugins.
-	 *
-	 * @returns Registered plugins in install order.
-	 */
-	public getPlugins(): Plugin[] {
-		return [...this.plugins];
-	}
-
-	/**
-	 * Registers a shared Vue plugin used by injected apps.
-	 *
-	 * Duplicate plugin references are ignored to avoid repeated installation.
-	 *
-	 * @param plugin Vue plugin instance.
-	 */
-	public use<T extends Plugin>(plugin: T): void {
-		if (this.plugins.includes(plugin)) {
-			this.logger.warn('Plugin already registered, skipping duplicate');
-			return;
-		}
-		this.plugins.push(plugin);
-	}
-
-	/**
-	 * Registers multiple shared Vue plugins used by injected apps.
-	 *
-	 * @param plugins Vue plugin instances.
-	 */
-	public usePlugins(...plugins: Plugin[]): void {
-		for (const plugin of plugins) {
-			this.use(plugin);
-		}
-	}
-
-	/**
-	 * Gets the stored Pinia instance from the legacy compatibility slot.
-	 *
-	 * @returns Pinia plugin instance or `undefined` when unset.
-	 */
-	public getPinia(): Plugin | undefined {
-		return this.pinia;
-	}
-
-	/**
-	 * Sets the Pinia instance used by injected apps.
-	 *
-	 * This method is kept as a compatibility alias and internally registers
-	 * the Pinia instance as a shared plugin.
-	 *
-	 * @param piniaInstance Pinia plugin instance.
-	 */
-	public setPinia<T extends Plugin>(piniaInstance: T): void {
-		if (this.pinia && this.pinia !== piniaInstance) {
-			this.logger.warn('Pinia instance already set, overwriting');
-			this.plugins = this.plugins.filter((plugin) => plugin !== this.pinia);
-		}
-
-		if (this.pinia === piniaInstance) {
-			return;
-		}
-
-		this.pinia = piniaInstance;
-		this.use(piniaInstance);
 	}
 
 	public getTaskStatus(id: string): TaskStatus | undefined {
@@ -247,7 +170,7 @@ export class TaskContext {
 		this.releaseListener(id);
 
 		// Unmount the app first, then remove the host element
-		if (isComponentTask(context)) {
+		if (isArtifactTask(context)) {
 			this.releaseComponentInstance(id);
 			this.releaseDomElement(id);
 		}
@@ -272,7 +195,7 @@ export class TaskContext {
 			this.releaseListener(id);
 
 			const context = this.contextMap.get(id);
-			if (context && isComponentTask(context)) {
+			if (context && isArtifactTask(context)) {
 				this.releaseComponentInstance(id);
 				this.releaseDomElement(id);
 			}
@@ -282,9 +205,6 @@ export class TaskContext {
 		this.contextMap.clear();
 		this.taskRecords = [];
 		this.taskErrorMessages = [];
-
-		this.plugins = [];
-		this.pinia = undefined;
 
 		this.logger.info('All tasks destroyed');
 	}
@@ -296,19 +216,26 @@ export class TaskContext {
 	 */
 	public releaseComponentInstance(id: string): void {
 		const context: Task | undefined = this.contextMap.get(id);
-		if (context && isComponentTask(context) && context.app) {
+		if (context && isArtifactTask(context) && context.mountHandle && context.appRoot) {
 			try {
-				context.app.unmount();
-				context.app = undefined;
+				context.adapter.unmount({
+					host: context.hostElement,
+					mountPoint: context.appRoot,
+					handle: context.mountHandle,
+					taskId: id,
+					injectAt: context.injectAt,
+					reason: 'destroy'
+				});
+				context.mountHandle = undefined;
 				context.instance = undefined;
 				this.emit(
 					'resource:componentUnmounted',
 					buildResourceObservePayload('resource:componentUnmounted', {
 						taskId: id,
 						kind: 'component',
-						injectAt: context.componentInjectAt,
+						injectAt: context.injectAt,
 						status: context.taskStatus,
-						componentName: context.componentName
+						artifactName: context.artifactName
 					})
 				);
 			} catch (error) {
@@ -326,7 +253,7 @@ export class TaskContext {
 	 */
 	public releaseDomElement(id: string): void {
 		const context: Task | undefined = this.contextMap.get(id);
-		if (!context || !isComponentTask(context)) {
+		if (!context || !isArtifactTask(context)) {
 			this.logger.warn(`Task "${id}" context not found, unable to remove root element`);
 			return;
 		}
@@ -337,6 +264,7 @@ export class TaskContext {
 		try {
 			context.appRoot.remove();
 			context.appRoot = undefined;
+			context.hostElement = undefined;
 		} catch (error) {
 			this.logger.error(`Failed to remove root element for task "${id}":`, error);
 		}
@@ -352,10 +280,10 @@ export class TaskContext {
 		if (!context) return;
 		const listener: TaskListenerFeature | undefined = getTaskListener(context);
 		const listenerEvent: string | undefined =
-			listener?.event ?? (isComponentTask(context) ? context.listener?.event : context.event);
+			listener?.event ?? (isArtifactTask(context) ? context.listener?.event : context.event);
 		const listenAt: string | undefined =
 			listener?.listenAt ??
-			(isComponentTask(context) ? context.listener?.listenAt : context.listenAt);
+			(isArtifactTask(context) ? context.listener?.listenAt : context.listenAt);
 
 		if (listener?.controller) {
 			try {
@@ -369,7 +297,7 @@ export class TaskContext {
 			listener.controller = undefined;
 		}
 
-		if (isComponentTask(context)) {
+		if (isArtifactTask(context)) {
 			context.listener = undefined;
 		}
 		context.withEvent = false;
@@ -395,7 +323,7 @@ export class TaskContext {
 		const context = this.contextMap.get(id);
 		if (context?.watcher) {
 			try {
-				context.watcher.watcher();
+				stopActivitySignal(context.watcher.watcher);
 				context.watcher = undefined;
 				this.emit(
 					'resource:watcherReleased',
@@ -422,17 +350,25 @@ export class TaskContext {
 		if (!context) return;
 
 		// unmount the subapp instance, to prevent memory leaks
-		if (isComponentTask(context) && context.app) {
-			context.app.unmount();
+		if (isArtifactTask(context) && context.mountHandle && context.appRoot) {
+			context.adapter.unmount({
+				host: context.hostElement,
+				mountPoint: context.appRoot,
+				handle: context.mountHandle,
+				taskId: id,
+				injectAt: context.injectAt,
+				reason: 'reset'
+			});
 		}
 
 		this.setTaskStatus(id, 'idle');
 
 		// reset context of id to initial state
 		// but keep the record in contextMap for future reuse
-		if (isComponentTask(context)) {
-			context.app = undefined;
+		if (isArtifactTask(context)) {
+			context.mountHandle = undefined;
 			context.instance = undefined;
+			context.hostElement = undefined;
 
 			context.appRoot?.remove();
 			context.appRoot = undefined;
@@ -441,7 +377,7 @@ export class TaskContext {
 		}
 
 		if (context.watcher) {
-			context.watcher.watcher();
+			stopActivitySignal(context.watcher.watcher);
 			context.watcher = undefined;
 		}
 

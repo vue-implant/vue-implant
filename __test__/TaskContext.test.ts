@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { App, ComponentPublicInstance, Ref, WatchHandle } from 'vue';
+import type { WatchHandle } from 'vue';
 import { ObserverHub } from '../src/core/hooks/ObserverHub';
 import type { ObserveEvent } from '../src/core/hooks/type';
 import { TaskContext } from '../src/core/Task/TaskContext';
-import type { ComponentTask, Task } from '../src/core/Task/types';
-import { createComponentTask, createListenerTask } from './factory/TaskFactor';
+import type { ArtifactTask, Task } from '../src/core/Task/types';
+import {
+	createArtifactTask,
+	createListenerTask,
+	createTask,
+	createVueComponent
+} from './factory/TaskFactor';
 
 describe('TaskContext', () => {
 	let taskContext: TaskContext;
@@ -17,7 +22,7 @@ describe('TaskContext', () => {
 
 	describe('base curd', () => {
 		it('should set and get context correctly', () => {
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test'
 			});
 			taskContext.set('test', context);
@@ -27,7 +32,7 @@ describe('TaskContext', () => {
 			expect(taskContext.get('nonexistent')).toBeUndefined();
 		});
 		it('should return true for existing key and false for non-existent key in has()', () => {
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test'
 			});
 			taskContext.set('test', context);
@@ -35,7 +40,7 @@ describe('TaskContext', () => {
 			expect(taskContext.has('nonexistent')).toBe(false);
 		});
 		it('should delete key correctly', () => {
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test'
 			});
 			taskContext.set('test', context);
@@ -43,8 +48,8 @@ describe('TaskContext', () => {
 			expect(taskContext.get('test')).toBeUndefined();
 		});
 		it('should return keys correctly', () => {
-			const context1: Task = createComponentTask({ taskId: 'test1' });
-			const context2: Task = createComponentTask({ taskId: 'test2' });
+			const context1: Task = createArtifactTask({ taskId: 'test1' });
+			const context2: Task = createArtifactTask({ taskId: 'test2' });
 			taskContext.set('test1', context1);
 			taskContext.set('test2', context2);
 			const keys = Array.from(taskContext.keys());
@@ -53,56 +58,13 @@ describe('TaskContext', () => {
 		});
 
 		it('should clear all contexts', () => {
-			const context1: Task = createComponentTask({ taskId: 'test1' });
-			const context2: Task = createComponentTask({ taskId: 'test2' });
+			const context1: Task = createArtifactTask({ taskId: 'test1' });
+			const context2: Task = createArtifactTask({ taskId: 'test2' });
 			taskContext.set('test1', context1);
 			taskContext.set('test2', context2);
 			taskContext.destroyAll();
 			expect(taskContext.get('test1')).toBeUndefined();
 			expect(taskContext.get('test2')).toBeUndefined();
-		});
-	});
-
-	describe('shared plugins', () => {
-		it('should register shared plugins in order and ignore duplicates', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-			const pluginA = { install: vi.fn() };
-			const pluginB = { install: vi.fn() };
-
-			taskContext.use(pluginA);
-			taskContext.usePlugins(pluginA, pluginB);
-
-			expect(taskContext.getPlugins()).toEqual([pluginA, pluginB]);
-			expect(warnSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Plugin already registered, skipping duplicate')
-			);
-		});
-
-		it('should keep getPlugins isolated from external mutation', () => {
-			const plugin = { install: vi.fn() };
-			taskContext.use(plugin);
-			const plugins = taskContext.getPlugins();
-
-			plugins.length = 0;
-
-			expect(taskContext.getPlugins()).toEqual([plugin]);
-		});
-
-		it('should keep setPinia/getPinia compatible and replace previous pinia plugin', () => {
-			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-			const otherPlugin = { install: vi.fn() };
-			const piniaA = { install: vi.fn() };
-			const piniaB = { install: vi.fn() };
-
-			taskContext.use(otherPlugin);
-			taskContext.setPinia(piniaA);
-			taskContext.setPinia(piniaB);
-
-			expect(taskContext.getPinia()).toBe(piniaB);
-			expect(taskContext.getPlugins()).toEqual([otherPlugin, piniaB]);
-			expect(warnSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Pinia instance already set, overwriting')
-			);
 		});
 	});
 
@@ -112,14 +74,14 @@ describe('TaskContext', () => {
 
 			taskContext.set(
 				'inactive',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'inactive',
 					taskStatus: 'idle'
 				})
 			);
 			taskContext.set(
 				'active',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'active',
 					taskStatus: 'active'
 				})
@@ -131,7 +93,7 @@ describe('TaskContext', () => {
 		it('should set task status correctly', () => {
 			taskContext.set(
 				'test',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'test',
 					taskStatus: 'idle'
 				})
@@ -206,18 +168,18 @@ describe('TaskContext', () => {
 
 	describe('destroy', () => {
 		it('should delete context of none existing id correctly', () => {
-			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 			taskContext.destroy('nonexistent');
 			expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('nonexistent'));
 		});
 		it('should delete context of existing id correctly', () => {
-			const context: Task = createComponentTask({ taskId: 'test' });
+			const context: Task = createArtifactTask({ taskId: 'test' });
 			taskContext.set('test', context);
 			taskContext.destroy('test');
 			expect(taskContext.get('test')).toBeUndefined();
 		});
 		it('should delete taskRecords and taskErrorMessages of existing id correctly', () => {
-			const context: Task = createComponentTask({ taskId: 'test' });
+			const context: Task = createArtifactTask({ taskId: 'test' });
 			taskContext.set('test', context);
 			taskContext.taskRecords.push({ taskId: 'test', injectAt: 'inject_test' });
 			taskContext.taskErrorMessages.push({ taskId: 'test', injectAt: 'inject_test' });
@@ -226,15 +188,15 @@ describe('TaskContext', () => {
 			expect(taskContext.taskErrorMessages).toHaveLength(0);
 		});
 		it('should destroy context of watcher correctly', () => {
-			const spy = vi.fn(() => {});
+			const spy = vi.fn(() => { });
 
 			const mockWatcher = spy as unknown as WatchHandle;
 
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				watcher: {
 					watcher: mockWatcher,
-					watchSource: () => true
+					watchSource: { get: () => true, subscribe: () => () => { } }
 				}
 			});
 
@@ -244,21 +206,22 @@ describe('TaskContext', () => {
 			expect(spy).toHaveBeenCalled();
 		});
 		it('should destroy context of listener correctly', () => {
-			const mockFn = vi.fn(() => {});
-			const context: Task = createComponentTask({
+			const mockFn = vi.fn(() => { });
+			const component = createVueComponent('Comp');
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				withEvent: true,
 				timeout: 5000,
 				alive: false,
 				scope: 'local',
-				componentName: 'Comp',
-				componentInjectAt: '#app',
-				component: { name: 'Comp', render: () => null },
+				artifactName: 'Comp',
+				injectAt: '#app',
+				artifact: component,
 				listener: {
 					listenAt: 'testListenAt',
 					event: 'click',
 					callback: () => undefined,
-					activitySignal: () => true as unknown as Ref<boolean>,
+					activitySignal: () => ({ get: () => true, subscribe: () => () => { } }),
 					controller: {
 						abort: mockFn
 					} as unknown as AbortController
@@ -276,24 +239,24 @@ describe('TaskContext', () => {
 			const mockUnmount = vi.fn();
 			const mockRemove = vi.fn();
 
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
-				componentName: 'TestComponent',
-				componentInjectAt: '#app',
-				app: {
+				artifactName: 'TestComponent',
+				injectAt: '#app',
+				mountHandle: {
 					unmount: mockUnmount
-				} as unknown as App<Element>,
+				},
 				appRoot: {
 					remove: mockRemove
 				} as unknown as HTMLElement,
-				instance: {} as ComponentPublicInstance
+				instance: {}
 			});
 
 			taskContext.set('test', context);
 			taskContext.destroy('test');
 
 			expect(mockUnmount).toHaveBeenCalled();
-			expect(context.app).toBeUndefined();
+			expect(context.mountHandle).toBeUndefined();
 			expect(context.instance).toBeUndefined();
 
 			expect(mockRemove).toHaveBeenCalled();
@@ -301,7 +264,7 @@ describe('TaskContext', () => {
 
 			expect(taskContext.get('test')).toBeUndefined();
 		});
-		it('should only release watchers and listeners when componentName is missing', () => {
+		it('should only release watchers and listeners when artifactName is missing', () => {
 			const mockWatcher = vi.fn() as unknown as WatchHandle;
 			const mockAbort = vi.fn();
 			const mockUnmount = vi.fn();
@@ -313,7 +276,7 @@ describe('TaskContext', () => {
 				timeout: 5000,
 				watcher: {
 					watcher: mockWatcher,
-					watchSource: () => true
+					watchSource: { get: () => true, subscribe: () => () => { } }
 				},
 				listenAt: 'testListenAt',
 				event: 'click',
@@ -335,8 +298,8 @@ describe('TaskContext', () => {
 	});
 	describe('destroyAll', () => {
 		it('should destroy all contexts correctly', () => {
-			const context1: Task = createComponentTask({ taskId: 'test1' });
-			const context2: Task = createComponentTask({ taskId: 'test2' });
+			const context1: Task = createArtifactTask({ taskId: 'test1' });
+			const context2: Task = createArtifactTask({ taskId: 'test2' });
 			taskContext.set('test1', context1);
 			taskContext.set('test2', context2);
 			taskContext.destroyAll();
@@ -355,14 +318,14 @@ describe('TaskContext', () => {
 		it('should clear all tasks after destroyAll', () => {
 			taskContext.set(
 				'destroy-all-a',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'destroy-all-a',
 					taskStatus: 'active'
 				})
 			);
 			taskContext.set(
 				'destroy-all-b',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'destroy-all-b',
 					taskStatus: 'idle'
 				})
@@ -383,7 +346,7 @@ describe('TaskContext', () => {
 				timeout: 5000,
 				watcher: {
 					watcher: mockWatcher1,
-					watchSource: () => true
+					watchSource: { get: () => true, subscribe: () => () => { } }
 				},
 				listenAt: 'testListenAt1',
 				event: 'click',
@@ -398,7 +361,7 @@ describe('TaskContext', () => {
 				timeout: 5000,
 				watcher: {
 					watcher: mockWatcher2,
-					watchSource: () => true
+					watchSource: { get: () => true, subscribe: () => () => { } }
 				},
 				listenAt: 'testListenAt2',
 				event: 'mouseover',
@@ -417,54 +380,43 @@ describe('TaskContext', () => {
 		it('should not throw an error when contextMap is empty', () => {
 			expect(() => taskContext.destroyAll()).not.toThrow();
 		});
-
-		it('should clear shared plugins and legacy pinia on destroyAll', () => {
-			const plugin = { install: vi.fn() };
-			const pinia = { install: vi.fn() };
-
-			taskContext.use(plugin);
-			taskContext.setPinia(pinia);
-			taskContext.destroyAll();
-
-			expect(taskContext.getPlugins()).toEqual([]);
-			expect(taskContext.getPinia()).toBeUndefined();
-		});
 	});
 
 	describe('releaseComponentInstance', () => {
 		it('should unmount app and remove DOM element', () => {
 			const mockUnmount = vi.fn();
 
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
-				componentName: 'TestComponent',
-				componentInjectAt: '#app',
-				app: { unmount: mockUnmount } as unknown as App<Element>,
-				instance: {} as ComponentPublicInstance
+				artifactName: 'TestComponent',
+				injectAt: '#app',
+				mountHandle: { unmount: mockUnmount },
+				appRoot: document.createElement('div'),
+				instance: {}
 			});
 
 			taskContext.set('test', context);
 			taskContext.releaseComponentInstance('test');
 
 			expect(mockUnmount).toHaveBeenCalled();
-			expect(context.app).toBeUndefined();
+			expect(context.mountHandle).toBeUndefined();
 			expect(context.instance).toBeUndefined();
 		});
 		it('should throw error when unmounting fails', () => {
 			const mockUnmount = vi.fn().mockImplementation(() => {
 				throw new Error('Unmount failed');
 			});
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
-				componentName: 'TestComponent',
-				componentInjectAt: '#app',
-				app: { unmount: mockUnmount } as unknown as App<Element>,
+				artifactName: 'TestComponent',
+				injectAt: '#app',
+				mountHandle: { unmount: mockUnmount },
 				appRoot: {} as unknown as HTMLElement,
-				instance: {} as ComponentPublicInstance
+				instance: {}
 			});
 
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
 			taskContext.releaseComponentInstance('test');
 
@@ -475,14 +427,14 @@ describe('TaskContext', () => {
 			);
 		});
 		it('should warn if component is already unmounted', () => {
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
-				componentName: 'TestComponent',
-				componentInjectAt: '#app'
+				artifactName: 'TestComponent',
+				injectAt: '#app'
 			});
 
 			taskContext.set('test', context);
-			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 
 			taskContext.releaseComponentInstance('test');
 
@@ -494,7 +446,7 @@ describe('TaskContext', () => {
 	describe('releaseDomElement', () => {
 		it('should remove root element', () => {
 			const mockRemove = vi.fn();
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				appRoot: { remove: mockRemove } as unknown as HTMLElement
 			});
@@ -504,7 +456,7 @@ describe('TaskContext', () => {
 		});
 
 		it('should warn if context not found', () => {
-			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 			taskContext.releaseDomElement('nonexistent');
 			expect(consoleWarnSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Task "nonexistent" context not found')
@@ -512,9 +464,9 @@ describe('TaskContext', () => {
 		});
 
 		it('should warn if root element not found', () => {
-			const context: Task = createComponentTask({ taskId: 'test' });
+			const context: Task = createArtifactTask({ taskId: 'test' });
 			taskContext.set('test', context);
-			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 			taskContext.releaseDomElement('test');
 			expect(consoleWarnSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Root element for task "test" not found')
@@ -525,12 +477,12 @@ describe('TaskContext', () => {
 			const mockRemove = vi.fn().mockImplementation(() => {
 				throw new Error('Remove failed');
 			});
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				appRoot: { remove: mockRemove } as unknown as HTMLElement
 			});
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 			taskContext.releaseDomElement('test');
 			expect(mockRemove).toHaveBeenCalled();
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -550,7 +502,7 @@ describe('TaskContext', () => {
 				event: 'click',
 				callback: () => undefined,
 				withEvent: true,
-				activitySignal: () => true as unknown as Ref<boolean>,
+				activitySignal: () => ({ get: () => true, subscribe: () => () => { } }),
 				controller: { abort: mockAbort } as unknown as AbortController
 			});
 			taskContext.set('test', context);
@@ -560,7 +512,7 @@ describe('TaskContext', () => {
 			expect(context.withEvent).toBe(false);
 		});
 		it('should do nothing if context not found', () => {
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 			taskContext.releaseListener('nonexistent');
 			expect(consoleErrorSpy).not.toHaveBeenCalled();
 		});
@@ -576,11 +528,11 @@ describe('TaskContext', () => {
 				event: 'click',
 				callback: () => undefined,
 				withEvent: true,
-				activitySignal: () => true as unknown as Ref<boolean>,
+				activitySignal: () => ({ get: () => true, subscribe: () => () => { } }),
 				controller: { abort: mockAbort } as unknown as AbortController
 			});
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 			taskContext.releaseListener('test');
 			expect(mockAbort).toHaveBeenCalled();
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -598,10 +550,10 @@ describe('TaskContext', () => {
 				event: 'click',
 				callback: () => undefined,
 				withEvent: true,
-				activitySignal: () => true as unknown as Ref<boolean>
+				activitySignal: () => ({ get: () => true, subscribe: () => () => { } })
 			});
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 			taskContext.releaseListener('test');
 			expect(consoleErrorSpy).not.toHaveBeenCalled();
 		});
@@ -609,12 +561,16 @@ describe('TaskContext', () => {
 	describe('releaseWatcher', () => {
 		it('should stop watcher', () => {
 			const mockWatcher = vi.fn() as unknown as WatchHandle;
-			const context: Task = createComponentTask({
+			const component = createVueComponent('TestComponent');
+			const context: Task = createArtifactTask({
 				taskId: 'test',
+				artifact: component,
 				watcher: {
 					watcher: mockWatcher,
-					watchSource: () => true
-				}
+					watchSource: { get: () => true, subscribe: () => () => { } }
+				},
+				artifactName: 'TestComponent',
+				injectAt: '#app'
 			});
 			taskContext.set('test', context);
 			taskContext.releaseWatcher('test');
@@ -623,11 +579,11 @@ describe('TaskContext', () => {
 		});
 
 		it('should do nothing if watcher is undefined', () => {
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test'
 			});
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 			taskContext.releaseWatcher('test');
 			expect(consoleErrorSpy).not.toHaveBeenCalled();
 		});
@@ -636,15 +592,16 @@ describe('TaskContext', () => {
 			const mockWatcher = vi.fn().mockImplementation(() => {
 				throw new Error('Stop failed');
 			}) as unknown as WatchHandle;
-			const context: Task = createComponentTask({
+			const context: Task = createTask({
 				taskId: 'test',
+				kind: 'component',
 				watcher: {
 					watcher: mockWatcher,
-					watchSource: () => true
+					watchSource: { get: () => true, subscribe: () => () => { } }
 				}
 			});
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 			taskContext.releaseWatcher('test');
 			expect(mockWatcher).toHaveBeenCalled();
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -660,14 +617,15 @@ describe('TaskContext', () => {
 			const mockUnmount = vi.fn();
 			const mockRemove = vi.fn();
 			const mockStopAlive = vi.fn();
+			const component = createVueComponent('TestComponent');
 
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				taskStatus: 'idle',
 				timeout: 5000,
 				watcher: {
 					watcher: mockWatcher,
-					watchSource: () => true
+					watchSource: { get: () => true, subscribe: () => () => { } }
 				},
 				listener: {
 					listenAt: 'testListenAt',
@@ -676,14 +634,14 @@ describe('TaskContext', () => {
 					controller: { abort: mockAbort } as unknown as AbortController
 				},
 				withEvent: true,
-				componentName: 'TestComponent',
-				componentInjectAt: '#app',
-				component: { name: 'TestComponent', render: () => null },
+				artifactName: 'TestComponent',
+				injectAt: '#app',
+				artifact: component,
 				alive: false,
 				scope: 'local',
-				app: { unmount: mockUnmount } as unknown as App<Element>,
+				mountHandle: { unmount: mockUnmount },
 				appRoot: { remove: mockRemove } as unknown as HTMLElement,
-				instance: {} as ComponentPublicInstance,
+				instance: {},
 				isObserver: true,
 				disableAlive: mockStopAlive
 			});
@@ -697,7 +655,7 @@ describe('TaskContext', () => {
 
 			expect(context.watcher).toBeUndefined();
 
-			expect(context.app).toBeUndefined();
+			expect(context.mountHandle).toBeUndefined();
 			expect(context.appRoot).toBeUndefined();
 			expect(context.instance).toBeUndefined();
 
@@ -714,7 +672,7 @@ describe('TaskContext', () => {
 			expect(() => taskContext.reset('nonexistent')).not.toThrow();
 		});
 		it('should stay in map after reset', () => {
-			const context: Task = createComponentTask({
+			const context: Task = createArtifactTask({
 				taskId: 'test',
 				taskStatus: 'idle'
 			});
@@ -724,7 +682,7 @@ describe('TaskContext', () => {
 				taskId: 'test',
 				kind: 'component',
 				taskStatus: 'idle',
-				app: undefined,
+				mountHandle: undefined,
 				appRoot: undefined,
 				instance: undefined,
 				isObserver: false
@@ -745,13 +703,13 @@ describe('TaskContext', () => {
 
 			taskContext.set(
 				'a',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'a',
 					taskStatus: 'idle',
 					timeout: 5000,
-					componentName: 'AComp',
-					componentInjectAt: '#a',
-					component: { name: 'AComp', render: () => null },
+					artifactName: 'AComp',
+					injectAt: '#a',
+					artifact: createVueComponent('AComp'),
 					alive: false,
 					scope: 'local',
 					withEvent: true,
@@ -761,11 +719,11 @@ describe('TaskContext', () => {
 						callback: () => undefined,
 						controller: { abort: abortA } as unknown as AbortController
 					},
-					app: { unmount: unmountA } as unknown as App<Element>,
+					mountHandle: { unmount: unmountA },
 					appRoot: { remove: removeA } as unknown as HTMLElement,
 					watcher: {
 						watcher: watcherA,
-						watchSource: () => true
+						watchSource: { get: () => true, subscribe: () => () => { } }
 					},
 					isObserver: true
 				})
@@ -773,13 +731,13 @@ describe('TaskContext', () => {
 
 			taskContext.set(
 				'b',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'b',
 					taskStatus: 'idle',
 					timeout: 5000,
-					componentName: 'BComp',
-					componentInjectAt: '#b',
-					component: { name: 'BComp', render: () => null },
+					artifactName: 'BComp',
+					injectAt: '#b',
+					artifact: createVueComponent('BComp'),
 					alive: false,
 					scope: 'local',
 					withEvent: true,
@@ -789,11 +747,11 @@ describe('TaskContext', () => {
 						callback: () => undefined,
 						controller: { abort: abortB } as unknown as AbortController
 					},
-					app: { unmount: unmountB } as unknown as App<Element>,
+					mountHandle: { unmount: unmountB },
 					appRoot: { remove: removeB } as unknown as HTMLElement,
 					watcher: {
 						watcher: watcherB,
-						watchSource: () => true
+						watchSource: { get: () => true, subscribe: () => () => { } }
 					},
 					isObserver: true
 				})
@@ -812,10 +770,10 @@ describe('TaskContext', () => {
 
 			expect(taskContext.has('a')).toBe(true);
 			expect(taskContext.has('b')).toBe(true);
-			expect(taskContext.get<ComponentTask>('a')?.app).toBeUndefined();
-			expect(taskContext.get<ComponentTask>('b')?.app).toBeUndefined();
-			expect(taskContext.get<ComponentTask>('a')?.isObserver).toBe(false);
-			expect(taskContext.get<ComponentTask>('b')?.isObserver).toBe(false);
+			expect(taskContext.get<ArtifactTask>('a')?.mountHandle).toBeUndefined();
+			expect(taskContext.get<ArtifactTask>('b')?.mountHandle).toBeUndefined();
+			expect(taskContext.get<ArtifactTask>('a')?.isObserver).toBe(false);
+			expect(taskContext.get<ArtifactTask>('b')?.isObserver).toBe(false);
 		});
 
 		it('should not throw when context map is empty', () => {
@@ -843,18 +801,18 @@ describe('TaskContext', () => {
 			const unmount = vi.fn();
 			observed.set(
 				'obs-task',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'obs-task',
 					taskStatus: 'idle',
 					timeout: 5000,
-					componentName: 'ObsComp',
-					componentInjectAt: '#obs',
-					component: { name: 'ObsComp', render: () => null },
+					artifactName: 'ObsComp',
+					injectAt: '#obs',
+					artifact: createVueComponent('ObsComp'),
 					alive: false,
 					scope: 'local',
 					watcher: {
 						watcher,
-						watchSource: () => true
+						watchSource: { get: () => true, subscribe: () => () => { } }
 					},
 					withEvent: true,
 					listener: {
@@ -863,7 +821,8 @@ describe('TaskContext', () => {
 						callback: vi.fn(),
 						controller: { abort } as unknown as AbortController
 					},
-					app: { unmount } as unknown as App<Element>
+					mountHandle: { unmount },
+					appRoot: document.createElement('div')
 				})
 			);
 
@@ -898,18 +857,18 @@ describe('TaskContext', () => {
 			const unmount = vi.fn();
 			observed.set(
 				'obs-resource',
-				createComponentTask({
+				createArtifactTask({
 					taskId: 'obs-resource',
 					taskStatus: 'idle',
 					timeout: 5000,
-					componentName: 'ObsResourceComp',
-					componentInjectAt: '#obs-resource',
-					component: { name: 'ObsResourceComp', render: () => null },
+					artifactName: 'ObsResourceComp',
+					injectAt: '#obs-resource',
+					artifact: createVueComponent('ObsResourceComp'),
 					alive: false,
 					scope: 'local',
 					watcher: {
 						watcher,
-						watchSource: () => true
+						watchSource: { get: () => true, subscribe: () => () => { } }
 					},
 					withEvent: true,
 					listener: {
@@ -918,7 +877,8 @@ describe('TaskContext', () => {
 						callback: vi.fn(),
 						controller: { abort } as unknown as AbortController
 					},
-					app: { unmount } as unknown as App<Element>
+					mountHandle: { unmount },
+					appRoot: document.createElement('div')
 				})
 			);
 
@@ -958,7 +918,7 @@ describe('TaskContext', () => {
 				status: 'idle',
 				meta: {
 					resource: 'component',
-					componentName: 'ObsResourceComp'
+					artifactName: 'ObsResourceComp'
 				}
 			});
 		});

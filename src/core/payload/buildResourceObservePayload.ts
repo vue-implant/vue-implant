@@ -22,7 +22,7 @@ type ResourceObserveInputByName = {
 	};
 	'resource:componentUnmounted': Omit<ResourceObserveBase, 'kind'> & {
 		kind: 'component';
-		componentName: string;
+		artifactName: string;
 	};
 };
 
@@ -45,7 +45,7 @@ type ResourceObservePayloadByName = {
 		kind: 'component';
 		meta: {
 			resource: 'component';
-			componentName: string;
+			artifactName: string;
 		};
 	};
 };
@@ -78,7 +78,7 @@ const resourceObservePayloadBuilders = {
 		status: input.status,
 		meta: {
 			resource: 'component',
-			componentName: input.componentName
+			artifactName: input.artifactName
 		}
 	})
 } satisfies ObservePayloadBuilderMap<
