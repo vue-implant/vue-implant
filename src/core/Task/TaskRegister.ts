@@ -135,7 +135,7 @@ export class TaskRegister {
 		artifact: TArtifact,
 		option?: ArtifactOptions
 	): _RegisterResult {
-		const artifactName = option?.artifactName ?? getArtifactName(artifact);
+		const artifactName = getArtifactName(artifact);
 		const taskId: string = this.getTaskId(artifactName, injectAt);
 		const withEvent = Boolean(option?.on);
 		const listenerEvent = option?.on?.type;

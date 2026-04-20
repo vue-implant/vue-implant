@@ -11,7 +11,6 @@ export enum Action {
 export type ActionEvent = 'OPEN' | 'CLOSE';
 
 export type ArtifactOptions = {
-	artifactName?: string;
 	alive?: boolean;
 	scope?: 'local' | 'global';
 	timeout?: number;

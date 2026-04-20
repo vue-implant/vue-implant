@@ -125,7 +125,6 @@ describe('TaskRegister', () => {
 		const artifact = createVueComponent('NativeBadge');
 
 		const result = taskRegister.register('#native-host', artifact, {
-			artifactName: 'NativeBadge',
 			alive: true,
 			scope: 'global'
 		});
