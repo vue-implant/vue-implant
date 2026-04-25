@@ -150,7 +150,7 @@ describe('TaskRegister', () => {
 	});
 
 	it('should return existing result for duplicate component registration', () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 		const component = createVueComponent('CompDup');
 		const first = taskRegister.register('#dup', component);
@@ -189,7 +189,7 @@ describe('TaskRegister', () => {
 	});
 
 	it('should return existing result for duplicate listener registration', () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 		const first = taskRegister.registerListener('#btn', 'click', vi.fn());
 		const second = taskRegister.registerListener('#btn', 'click', vi.fn());

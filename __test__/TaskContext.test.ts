@@ -168,7 +168,7 @@ describe('TaskContext', () => {
 
 	describe('destroy', () => {
 		it('should delete context of none existing id correctly', () => {
-			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			taskContext.destroy('nonexistent');
 			expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('nonexistent'));
 		});
@@ -188,7 +188,7 @@ describe('TaskContext', () => {
 			expect(taskContext.taskErrorMessages).toHaveLength(0);
 		});
 		it('should destroy context of watcher correctly', () => {
-			const spy = vi.fn(() => { });
+			const spy = vi.fn(() => {});
 
 			const mockWatcher = spy as unknown as WatchHandle;
 
@@ -196,7 +196,7 @@ describe('TaskContext', () => {
 				taskId: 'test',
 				watcher: {
 					watcher: mockWatcher,
-					watchSource: { get: () => true, subscribe: () => () => { } }
+					watchSource: { get: () => true, subscribe: () => () => {} }
 				}
 			});
 
@@ -206,7 +206,7 @@ describe('TaskContext', () => {
 			expect(spy).toHaveBeenCalled();
 		});
 		it('should destroy context of listener correctly', () => {
-			const mockFn = vi.fn(() => { });
+			const mockFn = vi.fn(() => {});
 			const component = createVueComponent('Comp');
 			const context: Task = createArtifactTask({
 				taskId: 'test',
@@ -221,7 +221,7 @@ describe('TaskContext', () => {
 					listenAt: 'testListenAt',
 					event: 'click',
 					callback: () => undefined,
-					activitySignal: () => ({ get: () => true, subscribe: () => () => { } }),
+					activitySignal: () => ({ get: () => true, subscribe: () => () => {} }),
 					controller: {
 						abort: mockFn
 					} as unknown as AbortController
@@ -276,7 +276,7 @@ describe('TaskContext', () => {
 				timeout: 5000,
 				watcher: {
 					watcher: mockWatcher,
-					watchSource: { get: () => true, subscribe: () => () => { } }
+					watchSource: { get: () => true, subscribe: () => () => {} }
 				},
 				listenAt: 'testListenAt',
 				event: 'click',
@@ -346,7 +346,7 @@ describe('TaskContext', () => {
 				timeout: 5000,
 				watcher: {
 					watcher: mockWatcher1,
-					watchSource: { get: () => true, subscribe: () => () => { } }
+					watchSource: { get: () => true, subscribe: () => () => {} }
 				},
 				listenAt: 'testListenAt1',
 				event: 'click',
@@ -361,7 +361,7 @@ describe('TaskContext', () => {
 				timeout: 5000,
 				watcher: {
 					watcher: mockWatcher2,
-					watchSource: { get: () => true, subscribe: () => () => { } }
+					watchSource: { get: () => true, subscribe: () => () => {} }
 				},
 				listenAt: 'testListenAt2',
 				event: 'mouseover',
@@ -416,7 +416,7 @@ describe('TaskContext', () => {
 			});
 
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
 			taskContext.releaseComponentInstance('test');
 
@@ -434,7 +434,7 @@ describe('TaskContext', () => {
 			});
 
 			taskContext.set('test', context);
-			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
 			taskContext.releaseComponentInstance('test');
 
@@ -456,7 +456,7 @@ describe('TaskContext', () => {
 		});
 
 		it('should warn if context not found', () => {
-			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			taskContext.releaseDomElement('nonexistent');
 			expect(consoleWarnSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Task "nonexistent" context not found')
@@ -466,7 +466,7 @@ describe('TaskContext', () => {
 		it('should warn if root element not found', () => {
 			const context: Task = createArtifactTask({ taskId: 'test' });
 			taskContext.set('test', context);
-			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+			const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 			taskContext.releaseDomElement('test');
 			expect(consoleWarnSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Root element for task "test" not found')
@@ -482,7 +482,7 @@ describe('TaskContext', () => {
 				appRoot: { remove: mockRemove } as unknown as HTMLElement
 			});
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			taskContext.releaseDomElement('test');
 			expect(mockRemove).toHaveBeenCalled();
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -502,7 +502,7 @@ describe('TaskContext', () => {
 				event: 'click',
 				callback: () => undefined,
 				withEvent: true,
-				activitySignal: () => ({ get: () => true, subscribe: () => () => { } }),
+				activitySignal: () => ({ get: () => true, subscribe: () => () => {} }),
 				controller: { abort: mockAbort } as unknown as AbortController
 			});
 			taskContext.set('test', context);
@@ -512,7 +512,7 @@ describe('TaskContext', () => {
 			expect(context.withEvent).toBe(false);
 		});
 		it('should do nothing if context not found', () => {
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			taskContext.releaseListener('nonexistent');
 			expect(consoleErrorSpy).not.toHaveBeenCalled();
 		});
@@ -528,11 +528,11 @@ describe('TaskContext', () => {
 				event: 'click',
 				callback: () => undefined,
 				withEvent: true,
-				activitySignal: () => ({ get: () => true, subscribe: () => () => { } }),
+				activitySignal: () => ({ get: () => true, subscribe: () => () => {} }),
 				controller: { abort: mockAbort } as unknown as AbortController
 			});
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			taskContext.releaseListener('test');
 			expect(mockAbort).toHaveBeenCalled();
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -550,10 +550,10 @@ describe('TaskContext', () => {
 				event: 'click',
 				callback: () => undefined,
 				withEvent: true,
-				activitySignal: () => ({ get: () => true, subscribe: () => () => { } })
+				activitySignal: () => ({ get: () => true, subscribe: () => () => {} })
 			});
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			taskContext.releaseListener('test');
 			expect(consoleErrorSpy).not.toHaveBeenCalled();
 		});
@@ -567,7 +567,7 @@ describe('TaskContext', () => {
 				artifact: component,
 				watcher: {
 					watcher: mockWatcher,
-					watchSource: { get: () => true, subscribe: () => () => { } }
+					watchSource: { get: () => true, subscribe: () => () => {} }
 				},
 				artifactName: 'TestComponent',
 				injectAt: '#app'
@@ -583,7 +583,7 @@ describe('TaskContext', () => {
 				taskId: 'test'
 			});
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			taskContext.releaseWatcher('test');
 			expect(consoleErrorSpy).not.toHaveBeenCalled();
 		});
@@ -597,11 +597,11 @@ describe('TaskContext', () => {
 				kind: 'component',
 				watcher: {
 					watcher: mockWatcher,
-					watchSource: { get: () => true, subscribe: () => () => { } }
+					watchSource: { get: () => true, subscribe: () => () => {} }
 				}
 			});
 			taskContext.set('test', context);
-			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+			const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 			taskContext.releaseWatcher('test');
 			expect(mockWatcher).toHaveBeenCalled();
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -625,7 +625,7 @@ describe('TaskContext', () => {
 				timeout: 5000,
 				watcher: {
 					watcher: mockWatcher,
-					watchSource: { get: () => true, subscribe: () => () => { } }
+					watchSource: { get: () => true, subscribe: () => () => {} }
 				},
 				listener: {
 					listenAt: 'testListenAt',
@@ -723,7 +723,7 @@ describe('TaskContext', () => {
 					appRoot: { remove: removeA } as unknown as HTMLElement,
 					watcher: {
 						watcher: watcherA,
-						watchSource: { get: () => true, subscribe: () => () => { } }
+						watchSource: { get: () => true, subscribe: () => () => {} }
 					},
 					isObserver: true
 				})
@@ -751,7 +751,7 @@ describe('TaskContext', () => {
 					appRoot: { remove: removeB } as unknown as HTMLElement,
 					watcher: {
 						watcher: watcherB,
-						watchSource: { get: () => true, subscribe: () => () => { } }
+						watchSource: { get: () => true, subscribe: () => () => {} }
 					},
 					isObserver: true
 				})
@@ -812,7 +812,7 @@ describe('TaskContext', () => {
 					scope: 'local',
 					watcher: {
 						watcher,
-						watchSource: { get: () => true, subscribe: () => () => { } }
+						watchSource: { get: () => true, subscribe: () => () => {} }
 					},
 					withEvent: true,
 					listener: {
@@ -868,7 +868,7 @@ describe('TaskContext', () => {
 					scope: 'local',
 					watcher: {
 						watcher,
-						watchSource: { get: () => true, subscribe: () => () => { } }
+						watchSource: { get: () => true, subscribe: () => () => {} }
 					},
 					withEvent: true,
 					listener: {

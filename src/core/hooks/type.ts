@@ -44,11 +44,19 @@ export type ObserveEvent = {
 	durationMs?: number;
 	error?: unknown;
 	preStatus?: TaskStatus;
-	nextStatus?: TaskStatus;
 	meta?: Record<string, unknown>;
 };
+export type PropagationState = {
+	ctrl: PropagationCtrl;
+	isPropagationStopped(): boolean;
+	isImmediatePropagationStopped(): boolean;
+};
 
-export type ObserveHook = (event: ObserveEvent) => void;
+export type PropagationCtrl = {
+	stopPropagation(): void;
+	stopImmediatePropagation(): void;
+};
+export type ObserveHook = (event: ObserveEvent, ctrl: PropagationCtrl) => void;
 
 export type LifecycleHookMap = Partial<Record<ObserveEventName, ObserveHook | ObserveHook[]>>;
 

@@ -1,6 +1,13 @@
 import { Logger } from '../logger/Logger';
 import type { ILogger } from '../logger/types';
-import type { ObserveEvent, ObserveEventName, ObserveHook } from './type';
+import type {
+	ObserveEvent,
+	ObserveEventName,
+	ObserveHook,
+	PropagationCtrl,
+	PropagationState
+} from './type';
+import { createPropagationState } from './util';
 
 export class ObserverHub {
 	private eventHooks: Map<ObserveEventName, Set<ObserveHook>> = new Map();
@@ -140,8 +147,11 @@ export class ObserverHub {
 			this.emitOnTask(event.taskId, event);
 			return;
 		}
-		this.dispatchHooks(this.eventHooks.get(event.name), event);
-		this.dispatchHooks(this.anyHooks, event);
+
+		const propagation = createPropagationState();
+		this.dispatchHooks(this.eventHooks.get(event.name), event, propagation);
+		if (propagation.isPropagationStopped()) return;
+		this.dispatchHooks(this.anyHooks, event, propagation);
 	}
 
 	public emitOnTask(taskId: string, event: ObserveEvent): void {
@@ -154,21 +164,29 @@ export class ObserverHub {
 
 		if (!hasTaskScopedHooks && !hasScopedHooks && this.anyHooks.size === 0) return;
 
-		this.dispatchHooks(taskScoped, normalized);
-		this.dispatchHooks(scoped, normalized);
-		this.dispatchHooks(this.anyHooks, normalized);
+		const propagation = createPropagationState();
+		this.dispatchHooks(taskScoped, normalized, propagation);
+		if (propagation.isPropagationStopped()) return;
+		this.dispatchHooks(scoped, normalized, propagation);
+		if (propagation.isPropagationStopped()) return;
+		this.dispatchHooks(this.anyHooks, normalized, propagation);
 	}
 
-	private dispatchHooks(hooks: Set<ObserveHook> | undefined, event: ObserveEvent): void {
+	private dispatchHooks(
+		hooks: Set<ObserveHook> | undefined,
+		event: ObserveEvent,
+		propagation: PropagationState
+	): void {
 		if (!hooks || hooks.size === 0) return;
 		for (const hook of [...hooks]) {
-			this.callSafely(hook, event);
+			if (propagation.isImmediatePropagationStopped()) return;
+			this.callSafely(hook, event, propagation.ctrl);
 		}
 	}
 
-	private callSafely(hook: ObserveHook, event: ObserveEvent): void {
+	private callSafely(hook: ObserveHook, event: ObserveEvent, ctrl: PropagationCtrl): void {
 		try {
-			hook(event);
+			hook(event, ctrl);
 		} catch (error) {
 			this.logger.error(`Hook execution failed for event "${event.name}".`, error);
 		}

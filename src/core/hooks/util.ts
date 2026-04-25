@@ -1,5 +1,11 @@
 import type { ObserverHub } from './ObserverHub';
-import type { LifecycleHookMap, ObserveEmitter, ObserveEventName, ObserveHook } from './type';
+import type {
+	LifecycleHookMap,
+	ObserveEmitter,
+	ObserveEventName,
+	ObserveHook,
+	PropagationState
+} from './type';
 
 export const noopObserveEmitter: ObserveEmitter = () => {};
 
@@ -37,4 +43,26 @@ export function registerHooks(
 			}
 		}
 	}
+}
+export function createPropagationState(): PropagationState {
+	let stopped = false;
+	let immediateStopped = false;
+
+	return {
+		ctrl: {
+			stopPropagation() {
+				stopped = true;
+			},
+			stopImmediatePropagation() {
+				stopped = true;
+				immediateStopped = true;
+			}
+		},
+		isPropagationStopped() {
+			return stopped;
+		},
+		isImmediatePropagationStopped() {
+			return immediateStopped;
+		}
+	};
 }

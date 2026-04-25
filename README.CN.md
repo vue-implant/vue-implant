@@ -316,15 +316,15 @@ import { Injector, ObserverHub } from 'vue-implant';
 const observer = new ObserverHub();
 const injector = new Injector({ observer });
 
-const offAny = observer.onAny((event) => {
+const offAny = observer.onAny((event, ctrl) => {
 	console.log('[observe]', event.name, event.taskId, event.injectAt, event.status);
 });
 
-const offFail = observer.on('inject:fail', (event) => {
+const offFail = observer.on('inject:fail', (event, ctrl) => {
 	console.error('inject failed:', event.taskId, event.error);
 });
 
-const offTask = observer.onTask('MyComp@#app', 'task:afterReset', (event) => {
+const offTask = observer.onTask('MyComp@#app', 'task:afterReset', (event, ctrl) => {
 	console.log('task reset completed:', event.taskId, event.preStatus, event.status);
 });
 
@@ -356,6 +356,35 @@ injector.register('#app', App, {
 - 全局钩子：在 `new Injector({ hooks })` 中配置，或通过 `injector.on(...)` / `injector.onAny(...)` 注册。
 - 组件级钩子：在 `injector.register(injectAt, component, { hooks })` 或`injector.onTask(taskId, event, hook)`中配置。
 - 当前组件级钩子仅支持 `register` 创建的组件任务，不支持 `registerListener`。
+
+### 传播控制
+
+每个钩子的第二个参数 `ctrl: PropagationCtrl` 可用于在单次 emit 周期中控制后续分发行为。
+
+| 方法 | 效果 |
+| --- | --- |
+| `ctrl.stopPropagation()` | 当前作用域内剩余钩子继续执行，但跳过后续作用域。 |
+| `ctrl.stopImmediatePropagation()` | 立即中断当前作用域内剩余钩子，并跳过所有后续作用域。 |
+
+单次 emit 的分发顺序：**任务作用域 → 事件作用域 → 全局（any）**
+
+```ts
+observer.onTask('MyComp@#app', 'inject:success', (event, ctrl) => {
+	console.log('任务层处理完成');
+	ctrl.stopPropagation(); // 事件层与全局层不再触发
+});
+
+observer.on('inject:success', (event) => {
+	// 上方任务层调用了 stopPropagation()，此处被跳过
+});
+
+observer.onAny((event) => {
+	// 同样被跳过
+});
+```
+
+> [!NOTE]
+> 只写一个参数的旧写法无需修改，`ctrl` 可直接忽略，运行时完全兼容。
 
 生命周期事件载荷：
 
@@ -621,6 +650,7 @@ injector.controlListener(taskId, Action.CLOSE);
 - 适配器相关：`MountAdapter`、`ResolvableMountAdapter`、`AdapterMountInput`、`AdapterMountResult`、`AdapterUnmountInput`、`AdapterUnmountReason`、`AdapterResolver`
 - Vue 挂载相关：`VueMountArtifact`、`VueMountHandle`、`VueMountInstance`
 - Signal 相关：`ActivitySignalSource`、`ActivitySignalSubscribable`、`SignalUnsubscribe`
+- Observer 相关：`PropagationCtrl`、`ObserveHook`、`ObserveEvent`、`ObserveEventName`
 
 
 

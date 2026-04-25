@@ -314,15 +314,15 @@ import { Injector, ObserverHub } from 'vue-implant';
 const observer = new ObserverHub();
 const injector = new Injector({ observer });
 
-const offAny = observer.onAny((event) => {
+const offAny = observer.onAny((event, ctrl) => {
 	console.log('[observe]', event.name, event.taskId, event.injectAt, event.status);
 });
 
-const offFail = observer.on('inject:fail', (event) => {
+const offFail = observer.on('inject:fail', (event, ctrl) => {
 	console.error('inject failed:', event.taskId, event.error);
 });
 
-const offTask = observer.onTask('MyComp@#app', 'task:afterReset', (event) => {
+const offTask = observer.onTask('MyComp@#app', 'task:afterReset', (event, ctrl) => {
 	console.log('task reset completed:', event.taskId, event.preStatus, event.status);
 });
 
@@ -355,6 +355,35 @@ Hook scopes:
 - Task-scoped hooks: use `injector.onTask(taskId, event, hook)`.
 - Component-level hooks: pass `hooks` in `injector.register(injectAt, component, { hooks })`.
 - Current component-level hooks are only available for component tasks created by `register` (not `registerListener`).
+
+### Propagation Control
+
+Every hook receives a second argument `ctrl: PropagationCtrl`. Use it to stop further dispatch within a single emit cycle.
+
+| Method | Effect |
+| --- | --- |
+| `ctrl.stopPropagation()` | Remaining hooks in the current scope still run, but the next scope is skipped. |
+| `ctrl.stopImmediatePropagation()` | Stops all remaining hooks in the current scope and all subsequent scopes immediately. |
+
+Dispatch order per emit: **task-scoped → event-scoped → any**
+
+```ts
+observer.onTask('MyComp@#app', 'inject:success', (event, ctrl) => {
+	console.log('handled in task scope');
+	ctrl.stopPropagation(); // event-scoped and any hooks will not fire
+});
+
+observer.on('inject:success', (event) => {
+	// skipped when stopPropagation() was called by a task-scoped hook above
+});
+
+observer.onAny((event) => {
+	// also skipped
+});
+```
+
+> [!NOTE]
+> Hooks that do not use the second parameter continue to work without any modification. The `ctrl` argument can be safely ignored.
 
 Lifecycle event payloads:
 
@@ -620,6 +649,7 @@ The package also exposes advanced TypeScript types for integration and tooling:
 - Adapter-related: `MountAdapter`, `ResolvableMountAdapter`, `AdapterMountInput`, `AdapterMountResult`, `AdapterUnmountInput`, `AdapterUnmountReason`, `AdapterResolver`
 - Vue mount-related: `VueMountArtifact`, `VueMountHandle`, `VueMountInstance`
 - Signal-related: `ActivitySignalSource`, `ActivitySignalSubscribable`, `SignalUnsubscribe`
+- Observer-related: `PropagationCtrl`, `ObserveHook`, `ObserveEvent`, `ObserveEventName`
 
 ## Limitations ⚠️
 

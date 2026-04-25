@@ -39,4 +39,4 @@ export type {
 	SignalUnsubscribe
 } from './core/signal/types';
 export type { ListenerRegisterResult, RegisterResult } from './core/Task/types';
-export { Action, VuePlugin, DOMWatcher, Injector, ObserverHub, createActivityStore };
+export { Action, createActivityStore, DOMWatcher, Injector, ObserverHub, VuePlugin };

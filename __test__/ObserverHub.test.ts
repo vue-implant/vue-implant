@@ -19,7 +19,13 @@ describe('ObserverHub', () => {
 		hub.emit(event);
 
 		expect(hook).toHaveBeenCalledOnce();
-		expect(hook).toHaveBeenCalledWith(event);
+		expect(hook).toHaveBeenCalledWith(
+			event,
+			expect.objectContaining({
+				stopImmediatePropagation: expect.any(Function),
+				stopPropagation: expect.any(Function)
+			})
+		);
 	});
 
 	it('should trigger onAny hooks for any event', () => {
@@ -51,6 +57,10 @@ describe('ObserverHub', () => {
 			expect.objectContaining({
 				name: 'run:start',
 				taskId: 'task-1'
+			}),
+			expect.objectContaining({
+				stopImmediatePropagation: expect.any(Function),
+				stopPropagation: expect.any(Function)
 			})
 		);
 		expect(task2Hook).not.toHaveBeenCalled();
@@ -71,6 +81,78 @@ describe('ObserverHub', () => {
 		expect(taskHook).toHaveBeenCalledOnce();
 		expect(scopedHook).toHaveBeenCalledOnce();
 		expect(anyHook).toHaveBeenCalledOnce();
+	});
+
+	it('should stop propagation from task hooks to scoped and any hooks', () => {
+		const hub = new ObserverHub();
+		const taskHook = vi.fn((_, ctrl) => {
+			ctrl.stopPropagation();
+		});
+		const nextTaskHook = vi.fn();
+		const scopedHook = vi.fn();
+		const anyHook = vi.fn();
+
+		hub.onTask('task-1', 'run:start', taskHook);
+		hub.onTask('task-1', 'run:start', nextTaskHook);
+		hub.on('run:start', scopedHook);
+		hub.onAny(anyHook);
+
+		hub.emitOnTask('task-1', {
+			name: 'run:start',
+			ts: Date.now()
+		});
+
+		expect(taskHook).toHaveBeenCalledOnce();
+		expect(nextTaskHook).toHaveBeenCalledOnce();
+		expect(scopedHook).not.toHaveBeenCalled();
+		expect(anyHook).not.toHaveBeenCalled();
+	});
+
+	it('should stop propagation from scoped hooks to any hooks', () => {
+		const hub = new ObserverHub();
+		const scopedHook = vi.fn((_, ctrl) => {
+			ctrl.stopPropagation();
+		});
+		const nextScopedHook = vi.fn();
+		const anyHook = vi.fn();
+
+		hub.on('run:start', scopedHook);
+		hub.on('run:start', nextScopedHook);
+		hub.onAny(anyHook);
+
+		hub.emit({
+			name: 'run:start',
+			ts: Date.now()
+		});
+
+		expect(scopedHook).toHaveBeenCalledOnce();
+		expect(nextScopedHook).toHaveBeenCalledOnce();
+		expect(anyHook).not.toHaveBeenCalled();
+	});
+
+	it('should stop immediate propagation within the current hook scope', () => {
+		const hub = new ObserverHub();
+		const taskHook = vi.fn((_, ctrl) => {
+			ctrl.stopImmediatePropagation();
+		});
+		const nextTaskHook = vi.fn();
+		const scopedHook = vi.fn();
+		const anyHook = vi.fn();
+
+		hub.onTask('task-1', 'run:start', taskHook);
+		hub.onTask('task-1', 'run:start', nextTaskHook);
+		hub.on('run:start', scopedHook);
+		hub.onAny(anyHook);
+
+		hub.emitOnTask('task-1', {
+			name: 'run:start',
+			ts: Date.now()
+		});
+
+		expect(taskHook).toHaveBeenCalledOnce();
+		expect(nextTaskHook).not.toHaveBeenCalled();
+		expect(scopedHook).not.toHaveBeenCalled();
+		expect(anyHook).not.toHaveBeenCalled();
 	});
 
 	it('should support unsubscribe from on()', () => {

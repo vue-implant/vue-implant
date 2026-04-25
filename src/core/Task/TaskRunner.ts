@@ -230,12 +230,9 @@ export class TaskRunner {
 		}
 
 		try {
-			const unWatch = observeActivitySignal(
-				source,
-				(newSignal) => {
-					this.controlListener(taskId, newSignal ? Action.OPEN : Action.CLOSE);
-				}
-			);
+			const unWatch = observeActivitySignal(source, (newSignal) => {
+				this.controlListener(taskId, newSignal ? Action.OPEN : Action.CLOSE);
+			});
 
 			context.watcher = {
 				watcher: unWatch,
