@@ -36,6 +36,18 @@ describe('TaskRegister', () => {
 		vi.restoreAllMocks();
 	});
 
+	it('should match Vue component artifacts with explicit Vue features', () => {
+		expect(vueAdapter.matches(createVueComponent('MatchedVue'))).toBe(true);
+	});
+
+	it('should not match plain function artifacts reserved for other adapters', () => {
+		function ReactLikeBadge() {
+			return null;
+		}
+
+		expect(vueAdapter.matches(ReactLikeBadge)).toBe(false);
+	});
+
 	it('should register a component task with defaults', () => {
 		const component = createVueComponent('CompA');
 		const result = taskRegister.register('#app', component);
@@ -150,7 +162,7 @@ describe('TaskRegister', () => {
 	});
 
 	it('should return existing result for duplicate component registration', () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 
 		const component = createVueComponent('CompDup');
 		const first = taskRegister.register('#dup', component);
@@ -189,7 +201,7 @@ describe('TaskRegister', () => {
 	});
 
 	it('should return existing result for duplicate listener registration', () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 
 		const first = taskRegister.registerListener('#btn', 'click', vi.fn());
 		const second = taskRegister.registerListener('#btn', 'click', vi.fn());

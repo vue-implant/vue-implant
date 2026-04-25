@@ -23,4 +23,5 @@ export type VueComponent = {
 	render?: () => void;
 	template?: string;
 	__vccOpts?: unknown;
+	__asyncLoader?: unknown;
 };
